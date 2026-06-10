@@ -20,7 +20,7 @@ router.post('/', authenticate, requireRole('customer'), async (req, res) => {
     const schema = z.object({
       providerId: z.number().int(),
       serviceId: z.number().int(),
-      scheduledAt: z.string().datetime(),
+      scheduledAt: z.string().datetime({ offset: true }).or(z.string().min(1)),
       address: z.string().min(5),
       problemDescription: z.string().optional(),
     });

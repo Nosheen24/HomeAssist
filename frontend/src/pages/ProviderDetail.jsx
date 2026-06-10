@@ -58,7 +58,7 @@ export default function ProviderDetail() {
       await createBooking({
         providerId: provider.id,
         serviceId: selectedService.id,
-        scheduledAt,
+        scheduledAt: new Date(scheduledAt).toISOString(),
         address,
         problemDescription: problemDesc,
       });

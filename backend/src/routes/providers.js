@@ -83,6 +83,20 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /api/providers/me/profile  — must be before /:id to avoid "me" being parsed as an id
+router.get('/me/profile', authenticate, requireRole('provider'), async (req, res) => {
+  try {
+    const provider = await prisma.provider.findUnique({
+      where: { userId: req.user.id },
+      include: providerInclude,
+    });
+    if (!provider) return res.status(404).json({ error: 'Provider profile not found' });
+    res.json(provider);
+  } catch {
+    res.status(500).json({ error: 'Failed to fetch profile' });
+  }
+});
+
 // GET /api/providers/:id
 router.get('/:id', async (req, res) => {
   try {
@@ -189,20 +203,6 @@ router.put('/:id/availability', authenticate, async (req, res) => {
   } catch (err) {
     if (err.name === 'ZodError') return res.status(400).json({ error: err.errors });
     res.status(500).json({ error: 'Failed to update availability' });
-  }
-});
-
-// GET /api/providers/me/profile  — get own provider profile
-router.get('/me/profile', authenticate, requireRole('provider'), async (req, res) => {
-  try {
-    const provider = await prisma.provider.findUnique({
-      where: { userId: req.user.id },
-      include: providerInclude,
-    });
-    if (!provider) return res.status(404).json({ error: 'Provider profile not found' });
-    res.json(provider);
-  } catch {
-    res.status(500).json({ error: 'Failed to fetch profile' });
   }
 });
 
