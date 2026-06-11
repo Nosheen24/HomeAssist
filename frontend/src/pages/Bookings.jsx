@@ -5,6 +5,7 @@ import Badge, { statusBadge } from '../components/ui/Badge';
 import Button from '../components/ui/Button';
 import StarRating from '../components/ui/StarRating';
 import Skeleton from '../components/ui/Skeleton';
+import LiveTrackerMap from '../components/shared/LiveTrackerMap';
 
 function ReviewModal({ booking, onClose, onSubmit }) {
   const [rating, setRating] = useState(5);
@@ -59,6 +60,12 @@ function ReviewModal({ booking, onClose, onSubmit }) {
 function BookingCard({ booking, onCancel, onReview }) {
   const { label, variant } = statusBadge(booking.status);
   const scheduledDate = new Date(booking.scheduledAt);
+  const canShowLiveTracker =
+    booking.status === 'accepted' &&
+    booking.providerLat != null &&
+    booking.providerLng != null &&
+    booking.customerLat != null &&
+    booking.customerLng != null;
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-5">
@@ -90,6 +97,31 @@ function BookingCard({ booking, onCancel, onReview }) {
           {booking.address}
         </div>
       </div>
+
+      {booking.status === 'accepted' && (
+        <div className="mt-4 space-y-3">
+          {canShowLiveTracker ? (
+            <LiveTrackerMap
+              customerLat={booking.customerLat}
+              customerLng={booking.customerLng}
+              providerLat={booking.providerLat}
+              providerLng={booking.providerLng}
+              distanceKm={booking.distanceKm}
+              etaMinutes={booking.etaMinutes}
+              destinationLabel={booking.customerLocationLabel || booking.address}
+              providerLabel={booking.provider?.user?.name || 'Provider'}
+              updatedAt={booking.providerLocationUpdatedAt}
+            />
+          ) : (
+            <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4">
+              <p className="text-sm font-medium text-gray-900">Live tracker not ready yet</p>
+              <p className="mt-1 text-sm text-gray-600">
+                The provider accepted your request. Once live GPS sharing starts and your booking includes a destination pin, the map and ETA will appear here.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       {booking.status === 'completed' && !booking.review && (
         <Button size="sm" className="w-full" onClick={() => onReview(booking)}>
@@ -133,6 +165,13 @@ export default function Bookings() {
   };
 
   useEffect(load, []);
+
+  useEffect(() => {
+    if (!bookings.some((booking) => booking.status === 'accepted')) return undefined;
+
+    const intervalId = setInterval(load, 15000);
+    return () => clearInterval(intervalId);
+  }, [bookings]);
 
   const handleCancel = async (id) => {
     if (!confirm('Cancel this booking?')) return;

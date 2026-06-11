@@ -23,6 +23,7 @@ export default function Admin() {
   const [unverified, setUnverified] = useState([]);
   const [loading, setLoading] = useState(true);
   const [verifying, setVerifying] = useState(null);
+  const [activeCnicImage, setActiveCnicImage] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -138,6 +139,47 @@ export default function Admin() {
                       {provider.user?.location}
                     </span>
                   </div>
+                  
+                  {provider.cnicNumber && (
+                    <div className="mt-3 bg-gray-50 rounded-xl p-3 border border-gray-100 max-w-md">
+                      <p className="text-xs font-semibold text-gray-500">CNIC Verification Details</p>
+                      <p className="text-sm font-bold text-gray-850 mt-0.5">💳 {provider.cnicNumber}</p>
+                      <div className="flex gap-3 mt-2">
+                        {provider.cnicFront ? (
+                          <div
+                            onClick={() => setActiveCnicImage({ url: provider.cnicFront, title: `CNIC Front - ${provider.user?.name}` })}
+                            className="w-24 h-16 border rounded-lg overflow-hidden bg-white hover:border-indigo-500 transition-colors cursor-pointer relative group flex items-center justify-center shadow-sm"
+                          >
+                            <img src={provider.cnicFront} alt="CNIC Front" className="object-cover w-full h-full" />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white text-[9px] font-semibold">
+                              View Front
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="w-24 h-16 border border-dashed rounded-lg bg-white flex items-center justify-center text-[10px] text-gray-400">
+                            No Front
+                          </div>
+                        )}
+
+                        {provider.cnicBack ? (
+                          <div
+                            onClick={() => setActiveCnicImage({ url: provider.cnicBack, title: `CNIC Back - ${provider.user?.name}` })}
+                            className="w-24 h-16 border rounded-lg overflow-hidden bg-white hover:border-indigo-500 transition-colors cursor-pointer relative group flex items-center justify-center shadow-sm"
+                          >
+                            <img src={provider.cnicBack} alt="CNIC Back" className="object-cover w-full h-full" />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white text-[9px] font-semibold">
+                              View Back
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="w-24 h-16 border border-dashed rounded-lg bg-white flex items-center justify-center text-[10px] text-gray-400">
+                            No Back
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {provider.services?.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 mt-2">
                       {provider.services.map((svc) => (
@@ -165,6 +207,35 @@ export default function Admin() {
           </div>
         )}
       </div>
+
+      {activeCnicImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4"
+          onClick={() => setActiveCnicImage(null)}
+        >
+          <div
+            className="bg-white rounded-2xl max-w-2xl w-full p-4 relative flex flex-col items-center gap-4 animate-in fade-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center w-full border-b pb-2">
+              <h3 className="font-semibold text-gray-900">{activeCnicImage.title}</h3>
+              <button
+                onClick={() => setActiveCnicImage(null)}
+                className="text-gray-500 hover:text-gray-800 text-lg font-bold p-1"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="w-full flex justify-center items-center overflow-auto max-h-[70vh]">
+              {activeCnicImage.url ? (
+                <img src={activeCnicImage.url} alt={activeCnicImage.title} className="max-w-full max-h-[60vh] object-contain rounded-lg shadow-sm" />
+              ) : (
+                <div className="text-gray-400 py-12">No image uploaded</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

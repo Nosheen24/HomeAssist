@@ -17,6 +17,9 @@ const registerSchema = z.object({
   bio: z.string().optional(),
   experienceYears: z.number().int().min(0).optional(),
   serviceArea: z.string().optional(),
+  cnicNumber: z.string().regex(/^\d{5}-\d{7}-\d{1}$/, 'Invalid CNIC format (XXXXX-XXXXXXX-X)').optional().nullable(),
+  cnicFront: z.string().optional().nullable(),
+  cnicBack: z.string().optional().nullable(),
 });
 
 const loginSchema = z.object({
@@ -58,6 +61,9 @@ router.post('/register', async (req, res) => {
           bio: data.bio || '',
           experienceYears: data.experienceYears || 0,
           serviceArea: data.serviceArea || data.location || '',
+          cnicNumber: data.cnicNumber || null,
+          cnicFront: data.cnicFront || null,
+          cnicBack: data.cnicBack || null,
         },
       });
     }

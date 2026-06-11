@@ -125,11 +125,33 @@ router.put('/:id', authenticate, async (req, res) => {
       bio: z.string().optional(),
       experienceYears: z.number().int().min(0).optional(),
       serviceArea: z.string().optional(),
+      phone: z.string().optional().nullable(),
       profilePhoto: z.string().optional(),
+      cnicNumber: z.string().regex(/^\d{5}-\d{7}-\d{1}$/, 'Invalid CNIC format (XXXXX-XXXXXXX-X)').optional().nullable(),
+      cnicFront: z.string().optional().nullable(),
+      cnicBack: z.string().optional().nullable(),
     });
 
     const data = schema.parse(req.body);
-    const updated = await prisma.provider.update({ where: { id: providerId }, data });
+    const { phone, ...providerData } = data;
+
+    // If CNIC details are updated by a non-admin, reset isVerified to false
+    if (req.user.role !== 'admin' && (providerData.cnicNumber !== undefined || providerData.cnicFront !== undefined || providerData.cnicBack !== undefined)) {
+      providerData.isVerified = false;
+    }
+
+    await prisma.$transaction(async (tx) => {
+      if (phone !== undefined) {
+        await tx.user.update({ where: { id: provider.userId }, data: { phone: phone || null } });
+      }
+
+      await tx.provider.update({ where: { id: providerId }, data: providerData });
+    });
+
+    const updated = await prisma.provider.findUnique({
+      where: { id: providerId },
+      include: providerInclude,
+    });
     res.json(updated);
   } catch (err) {
     if (err.name === 'ZodError') return res.status(400).json({ error: err.errors });

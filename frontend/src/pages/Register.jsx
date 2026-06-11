@@ -6,18 +6,154 @@ import { useToast } from '../components/ui/Toast';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 
+function CNICUploadBox({ label, value, onChange, error }) {
+  const [isHovered, setIsHovered] = useState(false);
+
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        onChange(event.target.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handlePaste = (e) => {
+    const items = e.clipboardData?.items;
+    if (items) {
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          const file = items[i].getAsFile();
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            onChange(event.target.result);
+          };
+          reader.readAsDataURL(file);
+          e.preventDefault();
+          break;
+        }
+      }
+    }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsHovered(false);
+    const file = e.dataTransfer?.files?.[0];
+    if (file && file.type.indexOf('image') !== -1) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        onChange(event.target.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const inputId = `file-input-${label.replace(/\s+/g, '-').toLowerCase()}`;
+
+  return (
+    <div className="space-y-1">
+      <label className="block text-xs font-semibold text-gray-700">{label}</label>
+      <div
+        onPaste={handlePaste}
+        onDragOver={(e) => { e.preventDefault(); setIsHovered(true); }}
+        onDragLeave={() => setIsHovered(false)}
+        onDrop={handleDrop}
+        onClick={() => document.getElementById(inputId).click()}
+        className={`relative border-2 border-dashed rounded-xl p-3 text-center cursor-pointer transition-all flex flex-col items-center justify-center min-h-[120px] ${
+          value
+            ? 'border-green-300 bg-green-50/20'
+            : isHovered
+            ? 'border-indigo-500 bg-indigo-50/20'
+            : 'border-gray-300 hover:border-indigo-400 bg-gray-50/50'
+        }`}
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            document.getElementById(inputId).click();
+          }
+        }}
+      >
+        <input
+          type="file"
+          id={inputId}
+          accept="image/*"
+          onChange={handleFileChange}
+          className="hidden"
+        />
+        {value ? (
+          <div className="relative w-full h-[90px] flex items-center justify-center overflow-hidden rounded-lg">
+            <img src={value} alt={label} className="object-contain max-h-[90px] rounded" />
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onChange('');
+              }}
+              className="absolute top-0 right-0 bg-red-500 text-white p-1 rounded-full text-xs shadow-md hover:bg-red-600 transition-colors"
+              title="Remove image"
+            >
+              ✕
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-1 text-[11px] text-gray-500 pointer-events-none">
+            <div className="text-xl">📷</div>
+            <p className="font-semibold text-gray-700">Click / Drop to upload</p>
+            <p className="text-gray-400">or click & <span className="font-semibold text-indigo-600">paste (Ctrl+V)</span></p>
+          </div>
+        )}
+      </div>
+      {error && <p className="text-[11px] text-red-500 font-medium">{error}</p>}
+    </div>
+  );
+}
+
 export default function Register() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { login } = useAuth();
   const toast = useToast();
   const [role, setRole] = useState(searchParams.get('role') === 'provider' ? 'provider' : 'customer');
-  const [form, setForm] = useState({ name: '', email: '', password: '', phone: '', location: '' });
+  const [form, setForm] = useState({
+    name: '',
+    email: '',
+    password: '',
+    phone: '',
+    location: '',
+    cnicNumber: '',
+    cnicFront: '',
+    cnicBack: '',
+  });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
+  const formatCNIC = (value) => {
+    const digits = value.replace(/\D/g, '').slice(0, 13);
+    let formatted = '';
+    if (digits.length <= 5) {
+      formatted = digits;
+    } else if (digits.length <= 12) {
+      formatted = `${digits.slice(0, 5)}-${digits.slice(5)}`;
+    } else {
+      formatted = `${digits.slice(0, 5)}-${digits.slice(5, 12)}-${digits.slice(12, 13)}`;
+    }
+    return formatted;
+  };
+
   const set = (key) => (e) => {
-    setForm((f) => ({ ...f, [key]: e.target.value }));
+    let val = e.target.value;
+    if (key === 'cnicNumber') {
+      val = formatCNIC(val);
+    }
+    setForm((f) => ({ ...f, [key]: val }));
+    setErrors((e2) => ({ ...e2, [key]: '' }));
+  };
+
+  const setDirect = (key) => (val) => {
+    setForm((f) => ({ ...f, [key]: val }));
     setErrors((e2) => ({ ...e2, [key]: '' }));
   };
 
@@ -26,6 +162,20 @@ export default function Register() {
     if (!form.name.trim()) errs.name = 'Full name is required';
     if (!form.email) errs.email = 'Email is required';
     if (!form.password || form.password.length < 6) errs.password = 'Minimum 6 characters';
+    
+    if (role === 'provider') {
+      if (!form.cnicNumber) {
+        errs.cnicNumber = 'CNIC number is required';
+      } else if (!/^\d{5}-\d{7}-\d{1}$/.test(form.cnicNumber)) {
+        errs.cnicNumber = 'CNIC format must be XXXXX-XXXXXXX-X';
+      }
+      if (!form.cnicFront) {
+        errs.cnicFront = 'CNIC Front picture is required';
+      }
+      if (!form.cnicBack) {
+        errs.cnicBack = 'CNIC Back picture is required';
+      }
+    }
     return errs;
   };
 
@@ -35,7 +185,22 @@ export default function Register() {
     if (Object.keys(errs).length) { setErrors(errs); return; }
     setLoading(true);
     try {
-      const data = await apiRegister({ ...form, role });
+      const payload = {
+        name: form.name,
+        email: form.email,
+        password: form.password,
+        phone: form.phone,
+        location: form.location,
+        role,
+      };
+
+      if (role === 'provider') {
+        payload.cnicNumber = form.cnicNumber;
+        payload.cnicFront = form.cnicFront;
+        payload.cnicBack = form.cnicBack;
+      }
+
+      const data = await apiRegister(payload);
       login(data.token, data.user);
       toast('Account created! Welcome to HomeAssist.', 'success');
       if (role === 'provider') navigate('/dashboard');
@@ -123,9 +288,36 @@ export default function Register() {
             </div>
 
             {role === 'provider' && (
-              <div className="rounded-xl bg-indigo-50 border border-indigo-200 p-3 text-sm text-indigo-800">
-                Your account will be reviewed by our team for verification before going live.
-              </div>
+              <>
+                <Input
+                  label="CNIC Number"
+                  type="text"
+                  value={form.cnicNumber}
+                  onChange={set('cnicNumber')}
+                  error={errors.cnicNumber}
+                  placeholder="35201-1234567-1"
+                  maxLength={15}
+                />
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <CNICUploadBox
+                    label="CNIC Front"
+                    value={form.cnicFront}
+                    onChange={setDirect('cnicFront')}
+                    error={errors.cnicFront}
+                  />
+                  <CNICUploadBox
+                    label="CNIC Back"
+                    value={form.cnicBack}
+                    onChange={setDirect('cnicBack')}
+                    error={errors.cnicBack}
+                  />
+                </div>
+
+                <div className="rounded-xl bg-indigo-50 border border-indigo-200 p-3 text-sm text-indigo-800">
+                  Your CNIC and details will be reviewed securely by our team for verification before going live.
+                </div>
+              </>
             )}
 
             <Button type="submit" loading={loading} className="w-full" size="lg">

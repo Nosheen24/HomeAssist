@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getProviderBookings, updateBookingStatus } from '../api/bookings';
+import { updateBookingTracking } from '../api/bookings';
 import {
   getMyProviderProfile,
   updateProviderProfile,
@@ -14,9 +15,189 @@ import Badge, { statusBadge } from '../components/ui/Badge';
 import Button from '../components/ui/Button';
 import StarRating from '../components/ui/StarRating';
 import Skeleton from '../components/ui/Skeleton';
+import LiveTrackerMap from '../components/shared/LiveTrackerMap';
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function CNICUploadBox({ label, value, onChange }) {
+  const [isHovered, setIsHovered] = useState(false);
+
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        onChange(event.target.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handlePaste = (e) => {
+    const items = e.clipboardData?.items;
+    if (items) {
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          const file = items[i].getAsFile();
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            onChange(event.target.result);
+          };
+          reader.readAsDataURL(file);
+          e.preventDefault();
+          break;
+        }
+      }
+    }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsHovered(false);
+    const file = e.dataTransfer?.files?.[0];
+    if (file && file.type.indexOf('image') !== -1) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        onChange(event.target.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const inputId = `dashboard-file-input-${label.replace(/\s+/g, '-').toLowerCase()}`;
+
+  return (
+    <div className="space-y-1">
+      <label className="block text-xs font-semibold text-gray-700">{label}</label>
+      <div
+        onPaste={handlePaste}
+        onDragOver={(e) => { e.preventDefault(); setIsHovered(true); }}
+        onDragLeave={() => setIsHovered(false)}
+        onDrop={handleDrop}
+        onClick={() => document.getElementById(inputId).click()}
+        className={`relative border-2 border-dashed rounded-xl p-3 text-center cursor-pointer transition-all flex flex-col items-center justify-center min-h-[120px] ${
+          value
+            ? 'border-green-300 bg-green-50/20'
+            : isHovered
+            ? 'border-indigo-500 bg-indigo-50/20'
+            : 'border-gray-300 hover:border-indigo-400 bg-gray-50/50'
+        }`}
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            document.getElementById(inputId).click();
+          }
+        }}
+      >
+        <input
+          type="file"
+          id={inputId}
+          accept="image/*"
+          onChange={handleFileChange}
+          className="hidden"
+        />
+        {value ? (
+          <div className="relative w-full h-[90px] flex items-center justify-center overflow-hidden rounded-lg">
+            <img src={value} alt={label} className="object-contain max-h-[90px] rounded" />
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onChange('');
+              }}
+              className="absolute top-0 right-0 bg-red-500 text-white p-1 rounded-full text-xs shadow-md hover:bg-red-600 transition-colors"
+              title="Remove image"
+            >
+              ✕
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-1 text-[11px] text-gray-500 pointer-events-none">
+            <div className="text-xl">📷</div>
+            <p className="font-semibold text-gray-700">Click / Drop to upload</p>
+            <p className="text-gray-400">or click & <span className="font-semibold text-indigo-600">paste (Ctrl+V)</span></p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ImageUploadBox({ label, value, onChange, hint }) {
+  const [isHovered, setIsHovered] = useState(false);
+
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => onChange(event.target.result);
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const inputId = `dashboard-image-input-${label.replace(/\s+/g, '-').toLowerCase()}`;
+
+  return (
+    <div className="space-y-1">
+      <label className="block text-xs font-semibold text-gray-700">{label}</label>
+      <div
+        onDragOver={(e) => { e.preventDefault(); setIsHovered(true); }}
+        onDragLeave={() => setIsHovered(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setIsHovered(false);
+          const file = e.dataTransfer?.files?.[0];
+          if (file && file.type.indexOf('image') !== -1) {
+            const reader = new FileReader();
+            reader.onload = (event) => onChange(event.target.result);
+            reader.readAsDataURL(file);
+          }
+        }}
+        onClick={() => document.getElementById(inputId).click()}
+        className={`relative border-2 border-dashed rounded-2xl p-4 text-center cursor-pointer transition-all flex flex-col items-center justify-center min-h-[180px] overflow-hidden ${
+          value
+            ? 'border-sky-300 bg-sky-50/20'
+            : isHovered
+            ? 'border-sky-500 bg-sky-50/20'
+            : 'border-gray-300 hover:border-sky-400 bg-gray-50/50'
+        }`}
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            document.getElementById(inputId).click();
+          }
+        }}
+      >
+        <input type="file" id={inputId} accept="image/*" onChange={handleFileChange} className="hidden" />
+        {value ? (
+          <div className="relative w-full flex items-center justify-center">
+            <img src={value} alt={label} className="max-h-[150px] w-full rounded-xl object-cover shadow-sm" />
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onChange('');
+              }}
+              className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full text-xs shadow-md hover:bg-red-600 transition-colors"
+              title="Remove image"
+            >
+              ✕
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-2 text-sm text-gray-500 pointer-events-none">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-white text-xl shadow-sm">
+              🖼️
+            </div>
+            <p className="font-semibold text-gray-700">Click / drop to upload</p>
+            <p className="text-xs text-gray-400">{hint || 'Add a clean profile photo that customers will recognize.'}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // ─── Stat Card ───────────────────────────────────────────────────────────────
 function StatCard({ label, value, icon, color }) {
@@ -40,17 +221,68 @@ function ProfileTab({ provider, onSaved }) {
     bio: provider?.bio || '',
     experienceYears: provider?.experienceYears || 0,
     serviceArea: provider?.serviceArea || '',
+    phone: provider?.user?.phone || '',
+    profilePhoto: provider?.profilePhoto || '',
+    cnicNumber: provider?.cnicNumber || '',
+    cnicFront: provider?.cnicFront || '',
+    cnicBack: provider?.cnicBack || '',
   });
   const [saving, setSaving] = useState(false);
+  const providerCode = `HA-PROV-${String(provider?.id || 0).padStart(4, '0')}`;
+
+  const formatCNIC = (value) => {
+    const digits = value.replace(/\D/g, '').slice(0, 13);
+    let formatted = '';
+    if (digits.length <= 5) {
+      formatted = digits;
+    } else if (digits.length <= 12) {
+      formatted = `${digits.slice(0, 5)}-${digits.slice(5)}`;
+    } else {
+      formatted = `${digits.slice(0, 5)}-${digits.slice(5, 12)}-${digits.slice(12, 13)}`;
+    }
+    return formatted;
+  };
+
+  const handleCNICChange = (e) => {
+    const formatted = formatCNIC(e.target.value);
+    setForm((f) => ({ ...f, cnicNumber: formatted }));
+  };
+
+  const setDirect = (key) => (val) => {
+    setForm((f) => ({ ...f, [key]: val }));
+  };
 
   const handleSave = async (e) => {
     e.preventDefault();
+    
+    if (!form.cnicNumber) {
+      toast('CNIC number is required', 'error');
+      return;
+    }
+    if (!/^\d{5}-\d{7}-\d{1}$/.test(form.cnicNumber)) {
+      toast('CNIC format must be XXXXX-XXXXXXX-X', 'error');
+      return;
+    }
+    if (!form.cnicFront) {
+      toast('CNIC Front image is required', 'error');
+      return;
+    }
+    if (!form.cnicBack) {
+      toast('CNIC Back image is required', 'error');
+      return;
+    }
+
     setSaving(true);
     try {
       await updateProviderProfile(provider.id, {
         bio: form.bio,
         experienceYears: parseInt(form.experienceYears),
         serviceArea: form.serviceArea,
+        phone: form.phone,
+        profilePhoto: form.profilePhoto,
+        cnicNumber: form.cnicNumber,
+        cnicFront: form.cnicFront,
+        cnicBack: form.cnicBack,
       });
       toast('Profile updated!', 'success');
       onSaved();
@@ -63,23 +295,41 @@ function ProfileTab({ provider, onSaved }) {
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
-      <div className="flex items-center gap-3 pb-4 border-b border-gray-100">
-        <div className="h-14 w-14 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-2xl font-bold flex-shrink-0">
-          {provider?.user?.name?.[0]?.toUpperCase()}
-        </div>
-        <div>
-          <p className="font-semibold text-gray-900">{provider?.user?.name}</p>
-          <p className="text-sm text-gray-500">{provider?.user?.email}</p>
-          <div className="mt-1">
-            {provider?.isVerified ? (
-              <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
-                ✓ Verified Provider
+      <div className="grid grid-cols-1 lg:grid-cols-[220px,1fr] gap-5 pb-5 border-b border-gray-100">
+        <ImageUploadBox
+          label="Profile Photo"
+          value={form.profilePhoto}
+          onChange={(value) => setForm((f) => ({ ...f, profilePhoto: value }))}
+          hint="Use a clear face photo so customers can trust the profile."
+        />
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-gray-500">Provider identity</p>
+              <h3 className="text-xl font-bold text-gray-900 mt-1">{provider?.user?.name}</h3>
+              <p className="text-sm text-gray-500">{provider?.user?.email}</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <span className="inline-flex items-center rounded-full bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white">
+                {providerCode}
               </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 text-xs font-medium text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded-full">
-                ⏳ Pending Verification
+              <span className="inline-flex items-center rounded-full bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 border border-indigo-100">
+                Provider ID #{provider?.id}
               </span>
-            )}
+              <span className={`inline-flex items-center rounded-full px-3 py-1.5 text-xs font-semibold border ${provider?.isVerified ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                {provider?.isVerified ? 'Verified' : 'Pending verification'}
+              </span>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
+              <p className="text-xs text-slate-500">Phone number</p>
+              <p className="text-sm font-semibold text-slate-900 mt-1">{provider?.user?.phone || 'Not set'}</p>
+            </div>
+            <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
+              <p className="text-xs text-slate-500">Service area</p>
+              <p className="text-sm font-semibold text-slate-900 mt-1">{provider?.serviceArea || 'Not set'}</p>
+            </div>
           </div>
         </div>
       </div>
@@ -109,6 +359,16 @@ function ProfileTab({ provider, onSaved }) {
             />
           </div>
           <div className="space-y-1">
+            <label className="block text-sm font-medium text-gray-700">Phone Number</label>
+            <input
+              type="tel"
+              value={form.phone}
+              onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+              placeholder="03xx-xxxxxxx"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+          <div className="space-y-1">
             <label className="block text-sm font-medium text-gray-700">Service Area</label>
             <input
               type="text"
@@ -118,6 +378,65 @@ function ProfileTab({ provider, onSaved }) {
               className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h4 className="font-semibold text-gray-950 text-sm">Public profile snapshot</h4>
+              <p className="text-xs text-gray-500 mt-0.5">This is the identity customers see when they book you.</p>
+            </div>
+            <span className="inline-flex items-center rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 border border-slate-200">
+              {providerCode}
+            </span>
+          </div>
+          <div className="grid grid-cols-3 gap-3 text-xs sm:text-sm">
+            <div className="rounded-xl bg-white border border-slate-200 p-3">
+              <p className="text-slate-500">Profile photo</p>
+              <p className="mt-1 font-semibold text-slate-900">{form.profilePhoto ? 'Uploaded' : 'Add one'}</p>
+            </div>
+            <div className="rounded-xl bg-white border border-slate-200 p-3">
+              <p className="text-slate-500">Phone</p>
+              <p className="mt-1 font-semibold text-slate-900">{form.phone || 'Add number'}</p>
+            </div>
+            <div className="rounded-xl bg-white border border-slate-200 p-3">
+              <p className="text-slate-500">Verified identity</p>
+              <p className="mt-1 font-semibold text-slate-900">{provider?.isVerified ? 'Verified' : 'Pending'}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="border-t border-gray-100 pt-4 space-y-4">
+          <h4 className="font-semibold text-gray-950 text-sm">CNIC Verification Information</h4>
+          
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-gray-700">CNIC Number</label>
+            <input
+              type="text"
+              value={form.cnicNumber}
+              onChange={handleCNICChange}
+              placeholder="35201-1234567-1"
+              maxLength={15}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <CNICUploadBox
+              label="CNIC Front"
+              value={form.cnicFront}
+              onChange={setDirect('cnicFront')}
+            />
+            <CNICUploadBox
+              label="CNIC Back"
+              value={form.cnicBack}
+              onChange={setDirect('cnicBack')}
+            />
+          </div>
+          
+          <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg p-2.5">
+            ⚠️ Warning: Updating your CNIC number or images will reset your verification status. You will need to wait for admin re-approval.
+          </p>
         </div>
 
         <Button type="submit" loading={saving} size="md">
@@ -365,11 +684,91 @@ const BOOKING_TABS = [
 
 function BookingsTab({ bookings, loading, onAction, actionLoading }) {
   const [tab, setTab] = useState('pending');
+  const [trackingState, setTrackingState] = useState({ active: false, lastUpdate: null, error: '' });
   const currentStatuses = BOOKING_TABS.find((t) => t.key === tab)?.statuses || [];
   const filtered = bookings.filter((b) => currentStatuses.includes(b.status));
+  const acceptedBookings = bookings.filter((booking) => booking.status === 'accepted');
+  const acceptedBookingIds = acceptedBookings.map((booking) => booking.id).join(',');
+
+  useEffect(() => {
+    if (!acceptedBookings.length) {
+      setTrackingState({ active: false, lastUpdate: null, error: '' });
+      return undefined;
+    }
+
+    if (!navigator.geolocation) {
+      setTrackingState({ active: false, lastUpdate: null, error: 'This browser does not support live GPS sharing.' });
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    const pushLocation = async (coords) => {
+      try {
+        await Promise.all(
+          acceptedBookings.map((booking) =>
+            updateBookingTracking(booking.id, {
+              latitude: coords.latitude,
+              longitude: coords.longitude,
+              accuracy: coords.accuracy,
+            })
+          )
+        );
+
+        if (!cancelled) {
+          setTrackingState({ active: true, lastUpdate: new Date(), error: '' });
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setTrackingState((state) => ({
+            ...state,
+            active: false,
+            error: err.message || 'Failed to share live GPS',
+          }));
+        }
+      }
+    };
+
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => pushLocation(position.coords),
+      (error) => {
+        if (!cancelled) {
+          setTrackingState({
+            active: false,
+            lastUpdate: null,
+            error: error.message || 'Enable location access to share live GPS.',
+          });
+        }
+      },
+      { enableHighAccuracy: true, maximumAge: 10000, timeout: 10000 }
+    );
+
+    return () => {
+      cancelled = true;
+      navigator.geolocation.clearWatch(watchId);
+    };
+  }, [acceptedBookingIds]);
 
   return (
     <div>
+      {acceptedBookings.length > 0 && (
+        <div className="mb-4 rounded-2xl border border-sky-200 bg-slate-950 text-white p-4 shadow-lg">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="font-semibold">Live GPS sharing {trackingState.error ? 'paused' : 'active'}</p>
+              <p className="text-sm text-slate-300 mt-0.5">
+                Updating {acceptedBookings.length} accepted booking{acceptedBookings.length > 1 ? 's' : ''} in real time.
+              </p>
+            </div>
+            <div className="text-sm text-slate-300">
+              {trackingState.lastUpdate
+                ? `Last update ${trackingState.lastUpdate.toLocaleTimeString('en-PK', { timeStyle: 'short' })}`
+                : trackingState.error || 'Waiting for browser location permission'}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex gap-1 bg-gray-100 p-1 rounded-xl mb-4">
         {BOOKING_TABS.map((t) => {
           const count = bookings.filter((b) => t.statuses.includes(b.status)).length;
@@ -429,6 +828,22 @@ function BookingsTab({ bookings, loading, onAction, actionLoading }) {
                   <div className="flex items-center gap-2 mb-3 bg-gray-50 rounded-lg px-3 py-2">
                     <StarRating rating={b.review.rating} size="sm" />
                     {b.review.comment && <span className="text-xs text-gray-600">"{b.review.comment}"</span>}
+                  </div>
+                )}
+                {b.status === 'accepted' && (
+                  <div className="mb-3">
+                    <LiveTrackerMap
+                      customerLat={b.customerLat}
+                      customerLng={b.customerLng}
+                      providerLat={b.providerLat}
+                      providerLng={b.providerLng}
+                      distanceKm={b.distanceKm}
+                      etaMinutes={b.etaMinutes}
+                      destinationLabel={b.customerLocationLabel || b.address}
+                      providerLabel={b.provider?.user?.name || 'Provider'}
+                      updatedAt={b.providerLocationUpdatedAt}
+                      className="overflow-hidden"
+                    />
                   </div>
                 )}
                 {b.status === 'pending' && (

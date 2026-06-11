@@ -5,6 +5,23 @@ const { authenticate, requireRole } = require('../middleware/auth');
 
 const prisma = new PrismaClient();
 
+function haversineDistanceKm(lat1, lng1, lat2, lng2) {
+  const toRadians = (value) => (value * Math.PI) / 180;
+  const earthRadiusKm = 6371;
+  const deltaLat = toRadians(lat2 - lat1);
+  const deltaLng = toRadians(lng2 - lng1);
+  const a =
+    Math.sin(deltaLat / 2) ** 2 +
+    Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.sin(deltaLng / 2) ** 2;
+  return 2 * earthRadiusKm * Math.asin(Math.sqrt(a));
+}
+
+function estimateEtaMinutes(distanceKm) {
+  if (distanceKm == null) return null;
+  const averageSpeedKmh = 26;
+  return Math.max(1, Math.round((distanceKm / averageSpeedKmh) * 60));
+}
+
 const bookingInclude = {
   service: { include: { category: true } },
   provider: {
@@ -22,8 +39,15 @@ router.post('/', authenticate, requireRole('customer'), async (req, res) => {
       serviceId: z.number().int(),
       scheduledAt: z.string().datetime({ offset: true }).or(z.string().min(1)),
       address: z.string().min(5),
+      customerLat: z.number().optional().nullable(),
+      customerLng: z.number().optional().nullable(),
+      customerLocationLabel: z.string().optional().nullable(),
       problemDescription: z.string().optional(),
-    });
+    }).refine((data) => {
+      const hasLat = data.customerLat != null;
+      const hasLng = data.customerLng != null;
+      return hasLat === hasLng;
+    }, { message: 'Customer location must include both latitude and longitude' });
 
     const data = schema.parse(req.body);
 
@@ -42,6 +66,9 @@ router.post('/', authenticate, requireRole('customer'), async (req, res) => {
         serviceId: data.serviceId,
         scheduledAt: new Date(data.scheduledAt),
         address: data.address,
+        customerLat: data.customerLat ?? null,
+        customerLng: data.customerLng ?? null,
+        customerLocationLabel: data.customerLocationLabel ?? null,
         problemDescription: data.problemDescription,
         status: 'pending',
       },
@@ -142,6 +169,56 @@ router.patch('/:id/status', authenticate, async (req, res) => {
   } catch (err) {
     if (err.name === 'ZodError') return res.status(400).json({ error: err.errors });
     res.status(500).json({ error: 'Failed to update booking status' });
+  }
+});
+
+// PATCH /api/bookings/:id/tracking
+router.patch('/:id/tracking', authenticate, async (req, res) => {
+  try {
+    const schema = z.object({
+      latitude: z.number(),
+      longitude: z.number(),
+      accuracy: z.number().optional().nullable(),
+    });
+
+    const { latitude, longitude } = schema.parse(req.body);
+
+    const booking = await prisma.booking.findUnique({
+      where: { id: parseInt(req.params.id) },
+      include: { provider: true },
+    });
+    if (!booking) return res.status(404).json({ error: 'Booking not found' });
+    if (booking.status !== 'accepted') {
+      return res.status(409).json({ error: 'Live tracking is only available for accepted bookings' });
+    }
+
+    const isProvider = booking.provider.userId === req.user.id;
+    if (!isProvider && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Only the provider can update tracking' });
+    }
+
+    const distanceKm =
+      booking.customerLat != null && booking.customerLng != null
+        ? haversineDistanceKm(latitude, longitude, booking.customerLat, booking.customerLng)
+        : null;
+    const etaMinutes = estimateEtaMinutes(distanceKm);
+
+    const updated = await prisma.booking.update({
+      where: { id: booking.id },
+      data: {
+        providerLat: latitude,
+        providerLng: longitude,
+        providerLocationUpdatedAt: new Date(),
+        distanceKm,
+        etaMinutes,
+      },
+      include: bookingInclude,
+    });
+
+    res.json(updated);
+  } catch (err) {
+    if (err.name === 'ZodError') return res.status(400).json({ error: err.errors });
+    res.status(500).json({ error: 'Failed to update live tracking' });
   }
 });
 

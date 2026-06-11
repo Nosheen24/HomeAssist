@@ -35,6 +35,10 @@ export default function ProviderDetail() {
   const [address, setAddress] = useState('');
   const [problemDesc, setProblemDesc] = useState('');
   const [booking, setBooking] = useState(false);
+  const [shareLocation, setShareLocation] = useState(false);
+  const [customerCoords, setCustomerCoords] = useState(null);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [locationError, setLocationError] = useState('');
 
   useEffect(() => {
     getProvider(id)
@@ -60,6 +64,9 @@ export default function ProviderDetail() {
         serviceId: selectedService.id,
         scheduledAt: new Date(scheduledAt).toISOString(),
         address,
+        customerLat: customerCoords?.latitude ?? null,
+        customerLng: customerCoords?.longitude ?? null,
+        customerLocationLabel: shareLocation ? 'Live GPS pin shared by customer' : null,
         problemDescription: problemDesc,
       });
       toast('Booking submitted successfully!', 'success');
@@ -69,6 +76,33 @@ export default function ProviderDetail() {
     } finally {
       setBooking(false);
     }
+  };
+
+  const useCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationError('Your browser does not support GPS sharing.');
+      return;
+    }
+
+    setLocationLoading(true);
+    setLocationError('');
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setCustomerCoords({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+        });
+        setShareLocation(true);
+        setLocationLoading(false);
+        toast('Live GPS pin added to this booking', 'success');
+      },
+      (error) => {
+        setLocationLoading(false);
+        setLocationError(error.message || 'Unable to read your location.');
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
   };
 
   if (loading) {
@@ -268,6 +302,36 @@ export default function ProviderDetail() {
                     required
                     className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">Live tracking destination pin</p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Share your current GPS position so the provider can see a map route and ETA after accepting.
+                      </p>
+                    </div>
+                    <span className={`text-xs font-medium rounded-full px-2.5 py-1 ${shareLocation ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-600'}`}>
+                      {shareLocation ? 'Enabled' : 'Optional'}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Button type="button" variant="secondary" size="sm" loading={locationLoading} onClick={useCurrentLocation}>
+                      Use my current location
+                    </Button>
+                    {customerCoords && (
+                      <span className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2.5 py-1">
+                        GPS pin saved
+                      </span>
+                    )}
+                  </div>
+                  {locationError && <p className="text-xs text-red-600">{locationError}</p>}
+                  {customerCoords && (
+                    <p className="text-xs text-gray-500">
+                      Lat {customerCoords.latitude.toFixed(5)} · Lng {customerCoords.longitude.toFixed(5)}
+                    </p>
+                  )}
                 </div>
 
                 <Textarea

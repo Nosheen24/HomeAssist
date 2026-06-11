@@ -34,6 +34,9 @@ model Provider {
   avgRating       Float   @default(0)
   reviewCount     Int     @default(0)
   profilePhoto    String?
+  cnicNumber      String?
+  cnicFront       String?
+  cnicBack        String?
 
   services     ProviderService[]
   availability AvailabilitySlot[]
@@ -81,6 +84,14 @@ model Booking {
   status             String   @default("pending")
   scheduledAt        DateTime
   address            String
+  customerLat        Float?
+  customerLng        Float?
+  customerLocationLabel String?
+  providerLat        Float?
+  providerLng        Float?
+  providerLocationUpdatedAt DateTime?
+  distanceKm         Float?
+  etaMinutes         Int?
   problemDescription String?
   createdAt          DateTime @default(now())
 
