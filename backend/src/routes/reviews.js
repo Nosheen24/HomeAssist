@@ -1,11 +1,9 @@
 const router = require('express').Router();
 const { z } = require('zod');
-const { PrismaClient } = require('@prisma/client');
+const pool = require('../lib/db');
+const { deepToCamel } = require('../lib/utils');
 const { authenticate, requireRole } = require('../middleware/auth');
 
-const prisma = new PrismaClient();
-
-// POST /api/reviews
 router.post('/', authenticate, requireRole('customer'), async (req, res) => {
   try {
     const schema = z.object({
@@ -16,38 +14,38 @@ router.post('/', authenticate, requireRole('customer'), async (req, res) => {
 
     const { bookingId, rating, comment } = schema.parse(req.body);
 
-    const booking = await prisma.booking.findUnique({
-      where: { id: bookingId },
-      include: { review: true },
-    });
+    const { rows: bookingRows } = await pool.query(
+      'SELECT * FROM bookings WHERE id = $1',
+      [bookingId]
+    );
+    if (bookingRows.length === 0) return res.status(404).json({ error: 'Booking not found' });
+    const booking = deepToCamel(bookingRows[0]);
 
-    if (!booking) return res.status(404).json({ error: 'Booking not found' });
     if (booking.customerId !== req.user.id) return res.status(403).json({ error: 'Forbidden' });
     if (booking.status !== 'completed') return res.status(400).json({ error: 'Can only review completed bookings' });
-    if (booking.review) return res.status(409).json({ error: 'Already reviewed' });
 
-    const review = await prisma.review.create({
-      data: { bookingId, providerId: booking.providerId, rating, comment },
-    });
+    const { rows: existingReview } = await pool.query('SELECT id FROM reviews WHERE booking_id = $1', [bookingId]);
+    if (existingReview.length > 0) return res.status(409).json({ error: 'Already reviewed' });
 
-    await prisma.booking.update({ where: { id: bookingId }, data: { status: 'reviewed' } });
+    const { rows: reviewRows } = await pool.query(
+      `INSERT INTO reviews (booking_id, provider_id, rating, comment)
+       VALUES ($1, $2, $3, $4) RETURNING *`,
+      [bookingId, booking.providerId, rating, comment || null]
+    );
 
-    // Recalculate provider avg rating
-    const agg = await prisma.review.aggregate({
-      where: { providerId: booking.providerId },
-      _avg: { rating: true },
-      _count: { rating: true },
-    });
+    await pool.query("UPDATE bookings SET status = 'reviewed' WHERE id = $1", [bookingId]);
 
-    await prisma.provider.update({
-      where: { id: booking.providerId },
-      data: {
-        avgRating: agg._avg.rating || 0,
-        reviewCount: agg._count.rating,
-      },
-    });
+    const { rows: aggRows } = await pool.query(
+      'SELECT AVG(rating) AS avg_rating, COUNT(*) AS review_count FROM reviews WHERE provider_id = $1',
+      [booking.providerId]
+    );
+    const { avg_rating, review_count } = aggRows[0];
+    await pool.query(
+      'UPDATE providers SET avg_rating = $1, review_count = $2 WHERE id = $3',
+      [parseFloat(avg_rating) || 0, parseInt(review_count), booking.providerId]
+    );
 
-    res.status(201).json(review);
+    res.status(201).json(deepToCamel(reviewRows[0]));
   } catch (err) {
     if (err.name === 'ZodError') return res.status(400).json({ error: err.errors });
     res.status(500).json({ error: 'Failed to submit review' });

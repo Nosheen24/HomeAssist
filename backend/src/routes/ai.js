@@ -1,7 +1,6 @@
 const router = require('express').Router();
-const { PrismaClient } = require('@prisma/client');
-
-const prisma = new PrismaClient();
+const pool = require('../lib/db');
+const { deepToCamel } = require('../lib/utils');
 
 router.post('/recommend', async (req, res) => {
   const { problem, location } = req.body;
@@ -46,25 +45,40 @@ Urgency: emergency=safety hazard, high=same-day needed, medium=within days, low=
   const { categories, urgency, explanation } = classificationResult;
 
   try {
-    const where = { services: { some: { category: { slug: { in: categories } } } } };
+    const conditions = [
+      `EXISTS (SELECT 1 FROM provider_services ps_ai JOIN service_categories sc_ai ON sc_ai.id = ps_ai.category_id WHERE ps_ai.provider_id = p.id AND sc_ai.slug = ANY($1))`,
+    ];
+    const params = [categories];
+
     if (location) {
-      where.OR = [
-        { serviceArea: { contains: location } },
-        { user: { location: { contains: location } } },
-      ];
+      params.push(`%${location}%`);
+      conditions.push(`(p.service_area ILIKE $${params.length} OR u.location ILIKE $${params.length})`);
     }
 
-    const providers = await prisma.provider.findMany({
-      where,
-      orderBy: { avgRating: 'desc' },
-      take: 5,
-      include: {
-        user: { select: { name: true, location: true } },
-        services: { include: { category: true }, take: 3 },
-      },
-    });
+    const { rows } = await pool.query(`
+      SELECT
+        p.*,
+        (SELECT jsonb_build_object('name', u2.name, 'location', u2.location) FROM users u2 WHERE u2.id = p.user_id) AS "user",
+        COALESCE((
+          SELECT jsonb_agg(s_data)
+          FROM (
+            SELECT jsonb_build_object(
+              'id', ps.id, 'title', ps.title, 'price', ps.price, 'price_unit', ps.price_unit,
+              'provider_id', ps.provider_id, 'category_id', ps.category_id,
+              'category', (SELECT jsonb_build_object('id', sc.id, 'name', sc.name, 'slug', sc.slug, 'icon', sc.icon)
+                           FROM service_categories sc WHERE sc.id = ps.category_id)
+            ) AS s_data
+            FROM provider_services ps WHERE ps.provider_id = p.id LIMIT 3
+          ) limited_svc
+        ), '[]') AS services
+      FROM providers p
+      JOIN users u ON u.id = p.user_id
+      WHERE ${conditions.join(' AND ')}
+      ORDER BY p.avg_rating DESC
+      LIMIT 5
+    `, params);
 
-    res.json({ categories, urgency, explanation, providers });
+    res.json({ categories, urgency, explanation, providers: deepToCamel(rows) });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Recommendation failed' });
@@ -74,14 +88,14 @@ Urgency: emergency=safety hazard, high=same-day needed, medium=within days, low=
 function keywordClassify(problem) {
   const text = problem.toLowerCase();
   const map = {
-    plumbing: ['pipe', 'leak', 'drain', 'tap', 'water', 'toilet', 'flush', 'pani', 'nali'],
-    electrical: ['electric', 'wire', 'switch', 'light', 'power', 'plug', 'bijli', 'bulb', 'fuse'],
-    cleaning: ['clean', 'dirty', 'dust', 'sweep', 'mop', 'wash', 'safai', 'ganda'],
-    carpentry: ['door', 'window', 'wood', 'furniture', 'cabinet', 'darwaza', 'carpenter'],
-    'ac-repair': ['ac', 'air condition', 'cooling', 'hvac', 'aircon', 'thanda', 'cool'],
-    painting: ['paint', 'wall', 'colour', 'color', 'rang', 'deewar', 'brush'],
-    'appliance-repair': ['appliance', 'fridge', 'washing machine', 'microwave', 'oven', 'machine'],
-    gardening: ['garden', 'plant', 'grass', 'tree', 'lawn', 'flower', 'baagh'],
+    plumbing:          ['pipe', 'leak', 'drain', 'tap', 'water', 'toilet', 'flush', 'pani', 'nali'],
+    electrical:        ['electric', 'wire', 'switch', 'light', 'power', 'plug', 'bijli', 'bulb', 'fuse'],
+    cleaning:          ['clean', 'dirty', 'dust', 'sweep', 'mop', 'wash', 'safai', 'ganda'],
+    carpentry:         ['door', 'window', 'wood', 'furniture', 'cabinet', 'darwaza', 'carpenter'],
+    'ac-repair':       ['ac', 'air condition', 'cooling', 'hvac', 'aircon', 'thanda', 'cool'],
+    painting:          ['paint', 'wall', 'colour', 'color', 'rang', 'deewar', 'brush'],
+    'appliance-repair':['appliance', 'fridge', 'washing machine', 'microwave', 'oven', 'machine'],
+    gardening:         ['garden', 'plant', 'grass', 'tree', 'lawn', 'flower', 'baagh'],
   };
 
   const categories = Object.entries(map)
@@ -92,11 +106,8 @@ function keywordClassify(problem) {
   if (categories.length === 0) categories.push('cleaning');
 
   let urgency = 'medium';
-  if (['flood', 'fire', 'gas leak', 'no power', 'emergency', 'urgent'].some((w) => text.includes(w))) {
-    urgency = 'high';
-  } else if (['routine', 'whenever', 'no rush'].some((w) => text.includes(w))) {
-    urgency = 'low';
-  }
+  if (['flood', 'fire', 'gas leak', 'no power', 'emergency', 'urgent'].some((w) => text.includes(w))) urgency = 'high';
+  else if (['routine', 'whenever', 'no rush'].some((w) => text.includes(w))) urgency = 'low';
 
   return {
     categories,

@@ -2,9 +2,8 @@ const router = require('express').Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { z } = require('zod');
-const { PrismaClient } = require('@prisma/client');
-
-const prisma = new PrismaClient();
+const pool = require('../lib/db');
+const { deepToCamel } = require('../lib/utils');
 
 const registerSchema = z.object({
   name: z.string().min(2).max(100),
@@ -13,7 +12,6 @@ const registerSchema = z.object({
   phone: z.string().optional(),
   location: z.string().optional(),
   role: z.enum(['customer', 'provider']).default('customer'),
-  // Provider-specific fields
   bio: z.string().optional(),
   experienceYears: z.number().int().min(0).optional(),
   serviceArea: z.string().optional(),
@@ -39,33 +37,24 @@ router.post('/register', async (req, res) => {
   try {
     const data = registerSchema.parse(req.body);
 
-    const existing = await prisma.user.findUnique({ where: { email: data.email } });
-    if (existing) return res.status(409).json({ error: 'Email already registered' });
+    const { rows: existing } = await pool.query('SELECT id FROM users WHERE email = $1', [data.email]);
+    if (existing.length > 0) return res.status(409).json({ error: 'Email already registered' });
 
     const passwordHash = await bcrypt.hash(data.password, 10);
-    const user = await prisma.user.create({
-      data: {
-        name: data.name,
-        email: data.email,
-        passwordHash,
-        phone: data.phone,
-        location: data.location,
-        role: data.role,
-      },
-    });
+    const { rows } = await pool.query(
+      `INSERT INTO users (name, email, password_hash, phone, location, role)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [data.name, data.email, passwordHash, data.phone || null, data.location || null, data.role]
+    );
+    const user = deepToCamel(rows[0]);
 
     if (data.role === 'provider') {
-      await prisma.provider.create({
-        data: {
-          userId: user.id,
-          bio: data.bio || '',
-          experienceYears: data.experienceYears || 0,
-          serviceArea: data.serviceArea || data.location || '',
-          cnicNumber: data.cnicNumber || null,
-          cnicFront: data.cnicFront || null,
-          cnicBack: data.cnicBack || null,
-        },
-      });
+      await pool.query(
+        `INSERT INTO providers (user_id, bio, experience_years, service_area, cnic_number, cnic_front, cnic_back)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [user.id, data.bio || '', data.experienceYears || 0, data.serviceArea || data.location || '',
+         data.cnicNumber || null, data.cnicFront || null, data.cnicBack || null]
+      );
     }
 
     const token = signToken(user);
@@ -83,8 +72,9 @@ router.post('/login', async (req, res) => {
   try {
     const { email, password } = loginSchema.parse(req.body);
 
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+    const { rows } = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    if (rows.length === 0) return res.status(401).json({ error: 'Invalid credentials' });
+    const user = deepToCamel(rows[0]);
 
     const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
@@ -102,11 +92,14 @@ router.post('/login', async (req, res) => {
 
 router.get('/me', require('../middleware/auth').authenticate, async (req, res) => {
   try {
-    const user = await prisma.user.findUnique({
-      where: { id: req.user.id },
-      include: { provider: true },
-    });
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    const { rows } = await pool.query(
+      `SELECT u.*,
+         (SELECT row_to_json(p) FROM providers p WHERE p.user_id = u.id) AS provider
+       FROM users u WHERE u.id = $1`,
+      [req.user.id]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    const user = deepToCamel(rows[0]);
     const { passwordHash, ...safe } = user;
     res.json(safe);
   } catch {

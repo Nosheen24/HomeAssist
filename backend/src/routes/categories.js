@@ -1,14 +1,11 @@
 const router = require('express').Router();
-const { PrismaClient } = require('@prisma/client');
-
-const prisma = new PrismaClient();
+const pool = require('../lib/db');
+const { deepToCamel } = require('../lib/utils');
 
 router.get('/', async (_req, res) => {
   try {
-    const categories = await prisma.serviceCategory.findMany({
-      orderBy: { name: 'asc' },
-    });
-    res.json(categories);
+    const { rows } = await pool.query('SELECT * FROM service_categories ORDER BY name ASC');
+    res.json(deepToCamel(rows));
   } catch {
     res.status(500).json({ error: 'Failed to fetch categories' });
   }
