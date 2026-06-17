@@ -11,6 +11,7 @@ import Register from './pages/Register';
 import Bookings from './pages/Bookings';
 import ProviderDashboard from './pages/ProviderDashboard';
 import Admin from './pages/Admin';
+import FAQChatbot from './components/shared/FAQChatbot';
 
 function Spinner() {
   return (
@@ -32,6 +33,7 @@ function AppRoutes() {
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
+      <FAQChatbot />
       <main className="flex-1">
         <Routes>
           <Route path="/" element={<Home />} />

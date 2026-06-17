@@ -2,6 +2,53 @@ const router = require('express').Router();
 const pool = require('../lib/db');
 const { deepToCamel } = require('../lib/utils');
 
+const FAQ_SYSTEM_PROMPT = `You are the HomeAssist customer support assistant. You only answer questions about HomeAssist. Do not answer anything unrelated to HomeAssist.
+
+HomeAssist is a home services marketplace in Pakistan serving Lahore, Karachi, and Islamabad. Customers can find and book verified plumbers, electricians, cleaners, AC repair, painters, carpenters, appliance repair, and gardening services.
+
+KEY INFO:
+- Cities served: Lahore, Karachi, Islamabad
+- Services: Plumbing, Electrical, Cleaning, AC Repair, Painting, Carpentry, Appliance Repair, Gardening
+- All providers are verified by admin via CNIC check before appearing on platform
+- Bookings can only be cancelled if status is Pending
+- Customers can leave a review after booking is Completed
+- Live GPS tracking is available when provider accepts booking
+- Register as Customer or Service Provider
+- Providers must upload CNIC front and back during registration
+- Admin reviews and verifies providers before they go live
+- AI assistant on homepage helps classify your problem and recommend the right provider
+- Three demo roles: Admin (admin@homeassist.pk), Customer (customer@homeassist.pk), Provider (ahmed@example.com)
+- Stack: React + Node.js + Supabase (PostgreSQL)
+
+RULES:
+- Only answer HomeAssist related questions
+- If asked something unrelated, say: "I can only help with HomeAssist related questions."
+- Keep answers short and clear
+- Respond in the same language the user writes in (Urdu or English)`;
+
+router.post('/chat', async (req, res) => {
+  const { messages } = req.body;
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return res.status(400).json({ error: 'messages array is required' });
+  }
+  if (!process.env.GROQ_API_KEY) {
+    return res.status(500).json({ error: 'GROQ_API_KEY not configured' });
+  }
+  try {
+    const Groq = require('groq-sdk');
+    const client = new Groq({ apiKey: process.env.GROQ_API_KEY });
+    const response = await client.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      max_tokens: 512,
+      messages: [{ role: 'system', content: FAQ_SYSTEM_PROMPT }, ...messages],
+    });
+    res.json({ reply: response.choices[0].message.content });
+  } catch (err) {
+    console.error('Groq chat error:', err.message);
+    res.status(500).json({ error: 'Chat failed' });
+  }
+});
+
 router.post('/recommend', async (req, res) => {
   const { problem, location } = req.body;
   if (!problem || typeof problem !== 'string') {
