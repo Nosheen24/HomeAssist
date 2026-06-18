@@ -4,17 +4,53 @@ export default {
   theme: {
     extend: {
       colors: {
-        primary: {
-          50: '#eef2ff',
-          100: '#e0e7ff',
-          500: '#6366f1',
-          600: '#4f46e5',
-          700: '#4338ca',
-          800: '#3730a3',
-        },
+        'ha-bg':            '#F8F5F1',   // warm cream — like premium paper
+        'ha-surface':       '#FFFFFF',   // pure white cards
+        'ha-surface-2':     '#F0EAE3',   // warm light gray for nested areas
+        'ha-border':        '#E8DDD5',   // warm light border
+        'ha-border-2':      '#D4C9BF',   // medium warm border
+        'ha-primary':       '#16A34A',   // green — HomeAssist brand
+        'ha-primary-hover': '#15803D',
+        'ha-accent':        '#F5A623',   // amber — ratings, highlights
+        'ha-teal':          '#0D9488',   // teal — verified, success (darkened for light bg)
+        'ha-text-1':        '#1A110A',   // near-black warm
+        'ha-text-2':        '#4A3D35',   // warm medium body text
+        'ha-text-3':        '#8A7A6E',   // warm light gray — hints, meta
+        'ha-danger':        '#EF4444',
       },
       fontFamily: {
-        sans: ['-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+        sans:    ['Plus Jakarta Sans', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+        display: ['Syne', 'sans-serif'],
+        mono:    ['JetBrains Mono', 'ui-monospace', 'monospace'],
+      },
+      boxShadow: {
+        'card':       '0 1px 4px 0 rgba(26,17,10,0.07), 0 1px 2px -1px rgba(26,17,10,0.05)',
+        'card-hover': '0 8px 24px -4px rgba(26,17,10,0.12), 0 2px 8px -2px rgba(26,17,10,0.06)',
+        'float':      '0 20px 40px -8px rgba(26,17,10,0.15)',
+      },
+      animation: {
+        'float':       'float 8s ease-in-out infinite',
+        'pulse-ring':  'pulse-ring 2s ease-out infinite',
+        'toast-in':    'toast-in 0.25s ease-out',
+        'fade-page':   'fade-page 0.15s ease-out',
+      },
+      keyframes: {
+        float: {
+          '0%, 100%': { transform: 'translateY(0px)' },
+          '50%':      { transform: 'translateY(-14px)' },
+        },
+        'pulse-ring': {
+          '0%':   { transform: 'scale(0.85)', opacity: '1' },
+          '100%': { transform: 'scale(1.5)',  opacity: '0' },
+        },
+        'toast-in': {
+          '0%':   { transform: 'translateX(110%)', opacity: '0' },
+          '100%': { transform: 'translateX(0)',    opacity: '1' },
+        },
+        'fade-page': {
+          '0%':   { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
       },
     },
   },

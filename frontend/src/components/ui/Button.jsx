@@ -7,20 +7,20 @@ export default function Button({
   ...props
 }) {
   const base =
-    'inline-flex items-center justify-center font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed';
+    'inline-flex items-center justify-center font-semibold rounded-[4px] transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-ha-bg disabled:opacity-50 disabled:cursor-not-allowed tracking-wide active:scale-[0.98]';
 
   const variants = {
-    primary: 'bg-indigo-600 hover:bg-indigo-700 text-white focus:ring-indigo-500',
-    secondary: 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 focus:ring-indigo-500',
-    danger: 'bg-red-600 hover:bg-red-700 text-white focus:ring-red-500',
-    ghost: 'text-gray-600 hover:bg-gray-100 focus:ring-gray-400',
-    success: 'bg-green-600 hover:bg-green-700 text-white focus:ring-green-500',
+    primary:   'bg-ha-primary hover:bg-ha-primary-hover text-white shadow-sm hover:shadow-md focus:ring-ha-primary',
+    secondary: 'border border-ha-border-2 text-ha-text-2 hover:border-ha-primary hover:text-ha-primary focus:ring-ha-primary bg-white',
+    danger:    'bg-red-50 border border-ha-danger text-ha-danger hover:bg-red-100 focus:ring-ha-danger',
+    ghost:     'text-ha-text-2 hover:bg-ha-surface-2 focus:ring-ha-border-2',
+    success:   'bg-teal-50 border border-ha-teal text-ha-teal hover:bg-teal-100 focus:ring-ha-teal',
   };
 
   const sizes = {
-    sm: 'px-3 py-1.5 text-sm gap-1.5',
+    sm: 'px-3 py-1.5 text-xs gap-1.5',
     md: 'px-4 py-2 text-sm gap-2',
-    lg: 'px-6 py-3 text-base gap-2',
+    lg: 'px-6 py-3 text-sm gap-2',
   };
 
   return (

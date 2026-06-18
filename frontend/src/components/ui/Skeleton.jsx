@@ -1,10 +1,10 @@
 export default function Skeleton({ className = '' }) {
-  return <div className={`animate-pulse bg-gray-200 rounded ${className}`} />;
+  return <div className={`animate-pulse bg-ha-surface-2 rounded ${className}`} />;
 }
 
 export function ProviderCardSkeleton() {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+    <div className="bg-ha-surface rounded-xl border border-ha-border p-5 space-y-4">
       <div className="flex items-start gap-3">
         <Skeleton className="h-12 w-12 rounded-full flex-shrink-0" />
         <div className="flex-1 space-y-2">
@@ -18,7 +18,7 @@ export function ProviderCardSkeleton() {
         <Skeleton className="h-6 w-20 rounded-full" />
         <Skeleton className="h-6 w-20 rounded-full" />
       </div>
-      <Skeleton className="h-9 w-full rounded-lg" />
+      <Skeleton className="h-9 w-full rounded-[4px]" />
     </div>
   );
 }

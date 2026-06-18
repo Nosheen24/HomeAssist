@@ -4,16 +4,30 @@
 
 @layer base {
   body {
-    @apply antialiased text-gray-900 bg-gray-50;
+    @apply antialiased bg-ha-bg text-ha-text-2;
   }
   * {
     @apply box-border;
+  }
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #F0EAE3;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #D4C9BF;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #16A34A;
   }
 }
 
 @layer components {
   .card {
-    @apply bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden;
+    @apply bg-ha-surface rounded-xl border border-ha-border shadow-card overflow-hidden;
   }
   .section-padding {
     @apply px-4 sm:px-6 lg:px-8;
@@ -21,4 +35,56 @@
   .container-max {
     @apply max-w-7xl mx-auto;
   }
+  /* Subtle dot grid — visible on the warm cream bg */
+  .halftone {
+    background-image: radial-gradient(circle, #D4C9BF 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+  .halftone-light {
+    background-image: radial-gradient(circle, #E8DDD5 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
 }
+
+@layer utilities {
+  .font-display {
+    font-family: 'Syne', sans-serif;
+  }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-14px); }
+}
+
+/* ─── Scroll-reveal animation system ─── */
+.reveal-up {
+  opacity: 0;
+  transform: translateY(44px);
+  transition: opacity 0.65s cubic-bezier(0.16, 1, 0.3, 1), transform 0.65s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.reveal-up.in-view { opacity: 1; transform: translateY(0); }
+
+.reveal-left {
+  opacity: 0;
+  transform: translateX(-48px);
+  transition: opacity 0.65s cubic-bezier(0.16, 1, 0.3, 1), transform 0.65s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.reveal-left.in-view { opacity: 1; transform: translateX(0); }
+
+.reveal-right {
+  opacity: 0;
+  transform: translateX(48px);
+  transition: opacity 0.65s cubic-bezier(0.16, 1, 0.3, 1), transform 0.65s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.reveal-right.in-view { opacity: 1; transform: translateX(0); }
+
+.reveal-scale {
+  opacity: 0;
+  transform: scale(0.94);
+  transition: opacity 0.55s ease, transform 0.55s ease;
+}
+.reveal-scale.in-view { opacity: 1; transform: scale(1); }
+
+/* stagger helper — add style="--delay:Xms" */
+[style*="--delay"] { transition-delay: var(--delay, 0ms); }

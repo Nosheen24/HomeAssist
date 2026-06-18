@@ -12,7 +12,7 @@ export default function StarRating({ rating = 0, max = 5, size = 'md', showNumbe
           className={`${interactive ? 'cursor-pointer hover:scale-110' : 'cursor-default'} transition-transform`}
         >
           <svg
-            className={`${sizes[size]} ${i < Math.round(rating) ? 'text-yellow-400' : 'text-gray-200'}`}
+            className={`${sizes[size]} ${i < Math.round(rating) ? 'text-ha-accent' : 'text-ha-border-2'}`}
             fill="currentColor"
             viewBox="0 0 20 20"
           >
@@ -21,7 +21,7 @@ export default function StarRating({ rating = 0, max = 5, size = 'md', showNumbe
         </button>
       ))}
       {showNumber && (
-        <span className="ml-1 text-sm text-gray-600 font-medium">{Number(rating).toFixed(1)}</span>
+        <span className="ml-1 text-sm text-ha-text-2 font-medium font-mono">{Number(rating).toFixed(1)}</span>
       )}
     </div>
   );
