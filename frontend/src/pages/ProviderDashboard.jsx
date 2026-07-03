@@ -7,8 +7,11 @@ import {
   addProviderService,
   deleteProviderService,
   updateAvailability,
+  setMyAvailability,
+  pingMyLocation,
 } from '../api/providers';
 import { getCategories } from '../api/categories';
+import { getWallet } from '../api/payments';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/ui/Toast';
 import Badge, { statusBadge } from '../components/ui/Badge';
@@ -698,9 +701,101 @@ function BookingsTab({ bookings, loading, onAction, actionLoading }) {
   );
 }
 
+// ─── Wallet Tab ───────────────────────────────────────────────────────────────
+const TXN_STATUS = {
+  held:     { label: 'Held', cls: 'bg-ha-accent/10 text-ha-accent border-ha-accent/30' },
+  released: { label: 'Released', cls: 'bg-ha-teal/10 text-ha-teal border-ha-teal/30' },
+  refunded: { label: 'Refunded', cls: 'bg-ha-danger/10 text-ha-danger border-ha-danger/30' },
+};
+
+const money = (n) => `PKR ${Number(n || 0).toLocaleString()}`;
+
+function WalletTab() {
+  const toast = useToast();
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getWallet()
+      .then(setData)
+      .catch(() => toast('Failed to load wallet', 'error'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <Skeleton className="h-80 rounded-xl" />;
+
+  const txns = data?.transactions || [];
+
+  return (
+    <div className="space-y-5">
+      {/* Balance card */}
+      <div className="bg-ha-surface rounded-2xl border border-ha-border p-6">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-sm text-ha-text-3">Available Balance</p>
+            <p className="text-4xl font-bold text-ha-text-1 font-mono mt-1">{money(data?.walletBalance)}</p>
+            <p className="text-sm text-ha-text-3 mt-2">
+              Total Earned: <span className="font-mono font-semibold text-ha-text-2">{money(data?.totalEarned)}</span>
+            </p>
+          </div>
+          <Button
+            variant="success"
+            onClick={() => toast('Withdrawal request submitted — funds will arrive in 1–2 business days', 'success')}
+          >
+            Withdraw
+          </Button>
+        </div>
+        <p className="mt-4 text-xs text-ha-text-3 bg-ha-surface-2 border border-ha-border rounded-lg px-3 py-2">
+          💸 You receive 85% of each booking. HomeAssist keeps a 15% platform fee. Funds are released to your
+          balance once you mark a job as completed.
+        </p>
+      </div>
+
+      {/* Transaction history */}
+      <div className="bg-ha-surface rounded-xl border border-ha-border">
+        <div className="px-5 py-3 border-b border-ha-border flex items-center justify-between">
+          <h3 className="font-semibold text-ha-text-1">Transaction History</h3>
+          <span className="text-sm text-ha-text-3">{txns.length} transactions</span>
+        </div>
+        {txns.length === 0 ? (
+          <div className="px-5 py-10 text-center text-sm text-ha-text-3">
+            No transactions yet — earnings from completed jobs will appear here.
+          </div>
+        ) : (
+          <div className="divide-y divide-ha-border">
+            {txns.map((t) => {
+              const st = TXN_STATUS[t.status] || TXN_STATUS.held;
+              return (
+                <div key={t.id} className="px-5 py-3 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-ha-text-1 truncate">{t.serviceTitle || 'Service'}</p>
+                    <p className="text-xs text-ha-text-3">
+                      {t.customerName || 'Customer'} · {new Date(t.createdAt).toLocaleDateString('en-PK', { dateStyle: 'medium' })} · {t.method}
+                    </p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-sm font-mono font-semibold text-ha-teal">+{money(t.providerPayout)}</p>
+                    <p className="text-[11px] text-ha-text-3 font-mono">
+                      {money(t.amount)} − {money(t.commission)} fee
+                    </p>
+                  </div>
+                  <span className={`text-xs font-medium rounded-full px-2.5 py-1 border flex-shrink-0 ${st.cls}`}>
+                    {st.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 const MAIN_TABS = [
   { key: 'bookings', label: 'Bookings' },
+  { key: 'wallet', label: 'Wallet' },
   { key: 'profile', label: 'Profile' },
   { key: 'services', label: 'Services' },
   { key: 'availability', label: 'Availability' },
@@ -716,6 +811,8 @@ export default function ProviderDashboard() {
   const [loadingBookings, setLoadingBookings] = useState(true);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
+  const [isOnline, setIsOnline] = useState(false);
+  const [togglingOnline, setTogglingOnline] = useState(false);
 
   const loadBookings = () => {
     setLoadingBookings(true);
@@ -739,6 +836,51 @@ export default function ProviderDashboard() {
     getCategories().then(setCategories).catch(() => {});
   }, []);
 
+  // Sync the online toggle with the saved availability once the profile loads.
+  useEffect(() => {
+    if (provider) setIsOnline(!!provider.isAvailable);
+  }, [provider]);
+
+  const toggleOnline = async () => {
+    const next = !isOnline;
+    setTogglingOnline(true);
+    try {
+      await setMyAvailability(next);
+      setIsOnline(next);
+      toast(
+        next ? 'You are online — customers can now see you on the live map' : 'You are now offline',
+        next ? 'success' : 'info'
+      );
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setTogglingOnline(false);
+    }
+  };
+
+  // While online, broadcast live GPS every 8s so customers see us on the nearby map.
+  useEffect(() => {
+    if (!isOnline || !navigator.geolocation) return undefined;
+    let cancelled = false;
+    const push = () => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          if (cancelled) return;
+          pingMyLocation({
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+            accuracy: pos.coords.accuracy,
+          }).catch(() => {});
+        },
+        () => {},
+        { enableHighAccuracy: true, maximumAge: 8000, timeout: 8000 }
+      );
+    };
+    push();
+    const id = setInterval(push, 8000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [isOnline]);
+
   const handleAction = async (id, status) => {
     setActionLoading(id + status);
     try {
@@ -760,9 +902,27 @@ export default function ProviderDashboard() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 bg-ha-bg min-h-screen">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-ha-text-1 font-display">Provider Dashboard</h1>
-        <p className="text-ha-text-3 mt-1">Welcome back, {user?.name?.split(' ')[0]}</p>
+      <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-ha-text-1 font-display">Provider Dashboard</h1>
+          <p className="text-ha-text-3 mt-1">Welcome back, {user?.name?.split(' ')[0]}</p>
+        </div>
+        <button
+          onClick={toggleOnline}
+          disabled={togglingOnline}
+          className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors disabled:opacity-60 ${
+            isOnline
+              ? 'border-ha-primary/30 bg-ha-primary/10 text-ha-primary'
+              : 'border-ha-border bg-ha-surface text-ha-text-3 hover:text-ha-text-2'
+          }`}
+          title="When online, you share live GPS and appear on the customer nearby map"
+        >
+          <span className="relative flex h-2.5 w-2.5">
+            {isOnline && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-ha-primary opacity-75" />}
+            <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${isOnline ? 'bg-ha-primary' : 'bg-ha-text-3'}`} />
+          </span>
+          {isOnline ? 'Online — visible on map' : 'Go online'}
+        </button>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
@@ -792,6 +952,7 @@ export default function ProviderDashboard() {
       {activeTab === 'bookings' && (
         <BookingsTab bookings={bookings} loading={loadingBookings} onAction={handleAction} actionLoading={actionLoading} />
       )}
+      {activeTab === 'wallet' && <WalletTab />}
       {activeTab === 'profile' && (
         loadingProfile ? <Skeleton className="h-80 rounded-xl" /> : <ProfileTab provider={provider} onSaved={loadProfile} />
       )}

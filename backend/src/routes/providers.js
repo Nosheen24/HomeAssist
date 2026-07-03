@@ -4,6 +4,16 @@ const pool = require('../lib/db');
 const { deepToCamel } = require('../lib/utils');
 const { authenticate, requireRole } = require('../middleware/auth');
 
+// Same haversine used by dispatch.js — distance in km between two lat/lng points.
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const toRad = (v) => (v * Math.PI) / 180;
+  const R = 6371;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
 const PROVIDER_FULL_SELECT = `
   SELECT
     p.*,
@@ -135,6 +145,118 @@ router.get('/me/profile', authenticate, requireRole('provider'), async (req, res
     res.json(deepToCamel(rows[0]));
   } catch {
     res.status(500).json({ error: 'Failed to fetch profile' });
+  }
+});
+
+// PATCH /api/providers/me/availability — provider goes online/offline for dispatch
+router.patch('/me/availability', authenticate, requireRole('provider'), async (req, res) => {
+  try {
+    const { isAvailable } = z.object({ isAvailable: z.boolean() }).parse(req.body);
+    const { rows } = await pool.query(
+      `UPDATE providers SET is_available = $1 WHERE user_id = $2 RETURNING id, is_available`,
+      [isAvailable, req.user.id]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Provider profile not found' });
+    res.json(deepToCamel(rows[0]));
+  } catch (err) {
+    if (err.name === 'ZodError') return res.status(400).json({ error: err.errors });
+    res.status(500).json({ error: 'Failed to update availability' });
+  }
+});
+
+// PATCH /api/providers/me/location — provider broadcasts live GPS while available.
+// Called on an interval from the dashboard whenever the provider is online.
+router.patch('/me/location', authenticate, requireRole('provider'), async (req, res) => {
+  try {
+    const { latitude, longitude } = z.object({
+      latitude: z.number(),
+      longitude: z.number(),
+      accuracy: z.number().optional().nullable(),
+    }).parse(req.body);
+
+    const { rows } = await pool.query(
+      `UPDATE providers SET lat = $1, lng = $2 WHERE user_id = $3 RETURNING id, lat, lng`,
+      [latitude, longitude, req.user.id]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Provider profile not found' });
+    res.json(deepToCamel(rows[0]));
+  } catch (err) {
+    if (err.name === 'ZodError') return res.status(400).json({ error: err.errors });
+    res.status(500).json({ error: 'Failed to update location' });
+  }
+});
+
+// GET /api/providers/nearby — live discovery of verified + available providers
+// around a point, sorted by distance. Public (like GET /). Query: lat, lng,
+// radius(km), category(slug), minRating, maxPrice.
+router.get('/nearby', async (req, res) => {
+  try {
+    const lat = parseFloat(req.query.lat);
+    const lng = parseFloat(req.query.lng);
+    if (Number.isNaN(lat) || Number.isNaN(lng)) {
+      return res.status(400).json({ error: 'lat and lng query params are required' });
+    }
+    const radius = req.query.radius ? parseFloat(req.query.radius) : 10;
+    const { category, minRating, maxPrice } = req.query;
+
+    const conditions = [
+      'p.is_verified = TRUE',
+      'p.is_available = TRUE',
+      'p.lat IS NOT NULL',
+      'p.lng IS NOT NULL',
+    ];
+    const params = [];
+
+    if (category) {
+      params.push(category);
+      conditions.push(
+        `EXISTS (SELECT 1 FROM provider_services ps2 JOIN service_categories sc2 ON sc2.id = ps2.category_id WHERE ps2.provider_id = p.id AND sc2.slug = $${params.length})`
+      );
+    }
+    if (minRating) {
+      params.push(parseFloat(minRating));
+      conditions.push(`p.avg_rating >= $${params.length}`);
+    }
+    if (maxPrice) {
+      params.push(parseFloat(maxPrice));
+      conditions.push(
+        `EXISTS (SELECT 1 FROM provider_services ps3 WHERE ps3.provider_id = p.id AND ps3.price <= $${params.length})`
+      );
+    }
+
+    const { rows } = await pool.query(`
+      SELECT
+        p.id, p.lat, p.lng, p.avg_rating, p.review_count, p.profile_photo, p.service_area, p.is_verified,
+        (SELECT jsonb_build_object('name', u2.name, 'location', u2.location)
+         FROM users u2 WHERE u2.id = p.user_id) AS "user",
+        COALESCE((
+          SELECT jsonb_agg(s_data)
+          FROM (
+            SELECT jsonb_build_object(
+              'id', ps.id, 'title', ps.title, 'price', ps.price, 'price_unit', ps.price_unit,
+              'category', (SELECT jsonb_build_object('id', sc.id, 'name', sc.name, 'slug', sc.slug, 'icon', sc.icon)
+                           FROM service_categories sc WHERE sc.id = ps.category_id)
+            ) AS s_data
+            FROM provider_services ps WHERE ps.provider_id = p.id ORDER BY ps.price ASC LIMIT 5
+          ) limited_svc
+        ), '[]') AS services
+      FROM providers p
+      JOIN users u ON u.id = p.user_id
+      WHERE ${conditions.join(' AND ')}
+    `, params);
+
+    const providers = deepToCamel(rows)
+      .map((p) => ({
+        ...p,
+        distanceKm: Math.round(haversineKm(lat, lng, Number(p.lat), Number(p.lng)) * 10) / 10,
+      }))
+      .filter((p) => p.distanceKm <= radius)
+      .sort((a, b) => a.distanceKm - b.distanceKm);
+
+    res.json({ providers, center: { lat, lng }, radius });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch nearby providers' });
   }
 });
 

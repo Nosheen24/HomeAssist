@@ -9,6 +9,7 @@ import Badge from '../components/ui/Badge';
 import Button from '../components/ui/Button';
 import Skeleton from '../components/ui/Skeleton';
 import { Textarea } from '../components/ui/Input';
+import PaymentModal from '../components/shared/PaymentModal';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -47,6 +48,7 @@ export default function ProviderDetail() {
   const [customerCoords, setCustomerCoords] = useState(null);
   const [locationLoading, setLocationLoading] = useState(false);
   const [locationError, setLocationError] = useState('');
+  const [payFor, setPayFor] = useState(null);
 
   useEffect(() => {
     getProvider(id)
@@ -67,7 +69,7 @@ export default function ProviderDetail() {
     }
     setBooking(true);
     try {
-      await createBooking({
+      const created = await createBooking({
         providerId: provider.id,
         serviceId: selectedService.id,
         scheduledAt: new Date(scheduledAt).toISOString(),
@@ -77,8 +79,12 @@ export default function ProviderDetail() {
         customerLocationLabel: shareLocation ? 'Live GPS pin shared by customer' : null,
         problemDescription: problemDesc,
       });
-      toast('Booking submitted successfully!', 'success');
-      navigate('/bookings');
+      toast('Booking created — complete payment to confirm', 'success');
+      setPayFor({
+        bookingId: created.id,
+        amount: selectedService.price,
+        serviceTitle: selectedService.title,
+      });
     } catch (err) {
       toast(err.message || 'Booking failed', 'error');
     } finally {
@@ -379,6 +385,16 @@ export default function ProviderDetail() {
           </div>
         </div>
       </div>
+
+      {payFor && (
+        <PaymentModal
+          bookingId={payFor.bookingId}
+          amount={payFor.amount}
+          serviceTitle={payFor.serviceTitle}
+          onClose={() => { setPayFor(null); navigate('/bookings'); }}
+          onPaid={() => { setPayFor(null); navigate('/bookings'); }}
+        />
+      )}
     </div>
   );
 }

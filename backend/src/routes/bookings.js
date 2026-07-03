@@ -3,6 +3,7 @@ const { z } = require('zod');
 const pool = require('../lib/db');
 const { deepToCamel, BOOKING_FULL_SELECT } = require('../lib/utils');
 const { authenticate, requireRole } = require('../middleware/auth');
+const { releaseEscrow, refundEscrow } = require('../lib/escrow');
 
 function haversineDistanceKm(lat1, lng1, lat2, lng2) {
   const toRadians = (v) => (v * Math.PI) / 180;
@@ -130,6 +131,17 @@ router.patch('/:id/status', authenticate, async (req, res) => {
     }
 
     await pool.query('UPDATE bookings SET status = $1 WHERE id = $2', [status, booking.id]);
+
+    // Escrow side effects — never let a payment hiccup block the status change.
+    try {
+      if (status === 'completed') {
+        await releaseEscrow(booking.id);   // pay out 85% to the provider's wallet
+      } else if (status === 'declined' || status === 'cancelled') {
+        await refundEscrow(booking.id);     // return any held funds to the customer
+      }
+    } catch (escrowErr) {
+      console.error('Escrow update failed for booking', booking.id, escrowErr);
+    }
 
     const { rows: updated } = await pool.query(`${BOOKING_FULL_SELECT} WHERE b.id = $1`, [booking.id]);
     res.json(deepToCamel(updated[0]));

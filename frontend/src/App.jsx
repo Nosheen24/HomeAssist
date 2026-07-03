@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ToastProvider } from './components/ui/Toast';
 import Navbar from './components/layout/Navbar';
@@ -30,11 +30,13 @@ function ProtectedRoute({ children, roles }) {
 }
 
 function AppRoutes() {
+  const location = useLocation();
+  const isHome = location.pathname === '/';
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
       <FAQChatbot />
-      <main className="flex-1">
+      <main className={`flex-1 ${isHome ? '' : 'pt-16'}`}>
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/search" element={<Search />} />

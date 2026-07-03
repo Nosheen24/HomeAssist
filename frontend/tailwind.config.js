@@ -4,23 +4,27 @@ export default {
   theme: {
     extend: {
       colors: {
-        'ha-bg':            '#F8F5F1',   // warm cream — like premium paper
-        'ha-surface':       '#FFFFFF',   // pure white cards
-        'ha-surface-2':     '#F0EAE3',   // warm light gray for nested areas
-        'ha-border':        '#E8DDD5',   // warm light border
-        'ha-border-2':      '#D4C9BF',   // medium warm border
-        'ha-primary':       '#16A34A',   // green — HomeAssist brand
+        'ha-bg':            '#F8F5F1',
+        'ha-surface':       '#FFFFFF',
+        'ha-surface-2':     '#F0EAE3',
+        'ha-border':        '#E8DDD5',
+        'ha-border-2':      '#D4C9BF',
+        'ha-primary':       '#16A34A',
         'ha-primary-hover': '#15803D',
-        'ha-accent':        '#F5A623',   // amber — ratings, highlights
-        'ha-teal':          '#0D9488',   // teal — verified, success (darkened for light bg)
-        'ha-text-1':        '#1A110A',   // near-black warm
-        'ha-text-2':        '#4A3D35',   // warm medium body text
-        'ha-text-3':        '#8A7A6E',   // warm light gray — hints, meta
+        'ha-accent':        '#F5A623',
+        'ha-teal':          '#0D9488',
+        'ha-text-1':        '#1A110A',
+        'ha-text-2':        '#4A3D35',
+        'ha-text-3':        '#8A7A6E',
         'ha-danger':        '#EF4444',
+        // Premium dark design system
+        'dk-bg':     '#050813',
+        'dk-card':   '#0C1222',
+        'dk-card-2': '#111827',
       },
       fontFamily: {
         sans:    ['Plus Jakarta Sans', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
-        display: ['Syne', 'sans-serif'],
+        display: ['Outfit', 'Plus Jakarta Sans', 'sans-serif'],
         mono:    ['JetBrains Mono', 'ui-monospace', 'monospace'],
       },
       boxShadow: {

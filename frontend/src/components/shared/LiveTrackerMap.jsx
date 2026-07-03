@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { addBaseTiles } from '../../lib/mapTiles';
 
 function toRadians(value) {
   return (value * Math.PI) / 180;
@@ -61,15 +62,19 @@ export default function LiveTrackerMap({
 }) {
   const mapRef = useRef(null);
   const containerRef = useRef(null);
+  // Real road route from OSRM (free, no key). Falls back to straight line on failure.
+  const [osrmRoute, setOsrmRoute] = useState(null);
 
   const hasCoordinates =
     customerLat != null && customerLng != null && providerLat != null && providerLng != null;
   const routeBearing = hasCoordinates ? calculateBearing(providerLat, providerLng, customerLat, customerLng) : 0;
 
   const effectiveDistanceKm =
+    osrmRoute?.distanceKm ??
     distanceKm ??
     (hasCoordinates ? haversineDistanceKm(providerLat, providerLng, customerLat, customerLng) : null);
   const effectiveEtaMinutes =
+    osrmRoute?.etaMinutes ??
     etaMinutes ??
     (effectiveDistanceKm == null ? null : Math.max(1, Math.round((effectiveDistanceKm / 26) * 60)));
 
@@ -78,23 +83,24 @@ export default function LiveTrackerMap({
       mapRef.current.remove();
       mapRef.current = null;
     }
+    setOsrmRoute(null);
 
     if (!hasCoordinates || !containerRef.current) return undefined;
 
     const map = L.map(containerRef.current, {
       zoomControl: false,
-      attributionControl: false,
+      attributionControl: true,
       scrollWheelZoom: false,
     });
+    map.attributionControl.setPrefix(false);
     mapRef.current = map;
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-    }).addTo(map);
+    // Shared basemap: OSM standard by default (denser labels than Positron),
+    // MapTiler streets when VITE_MAPTILER_KEY is set. See lib/mapTiles.js.
+    addBaseTiles(map);
 
     const providerPoint = [providerLat, providerLng];
     const destinationPoint = [customerLat, customerLng];
-    const midpoint = [(providerLat + customerLat) / 2, (providerLng + customerLng) / 2];
 
     const arrowIcon = L.divIcon({
       className: '',
@@ -128,27 +134,47 @@ export default function LiveTrackerMap({
       .addTo(map)
       .bindPopup(destinationLabel || 'Customer destination');
 
-    L.polyline([providerPoint, destinationPoint], {
+    // Straight-line fallback shown immediately; replaced by the OSRM road route.
+    let fallbackLine = L.polyline([providerPoint, destinationPoint], {
       color: '#38bdf8',
-      weight: 5,
-      opacity: 0.95,
-      dashArray: '10,10',
+      weight: 4,
+      opacity: 0.6,
+      dashArray: '8,10',
       lineCap: 'round',
     }).addTo(map);
 
-    L.circleMarker(midpoint, {
-      radius: 4,
-      color: '#38bdf8',
-      weight: 2,
-      fillColor: '#bae6fd',
-      fillOpacity: 0.8,
-    })
-      .addTo(map)
-      .bindTooltip('Direction of travel', { permanent: true, direction: 'top', className: 'text-xs' });
-
     map.fitBounds([providerPoint, destinationPoint], { padding: [36, 36] });
 
+    // Fetch the real driving route from the OSRM public API.
+    let cancelled = false;
+    const url =
+      `https://router.project-osrm.org/route/v1/driving/` +
+      `${providerLng},${providerLat};${customerLng},${customerLat}?overview=full&geometries=geojson`;
+    fetch(url)
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then((data) => {
+        if (cancelled || !mapRef.current) return;
+        const route = data?.routes?.[0];
+        if (!route?.geometry?.coordinates?.length) return;
+        const latlngs = route.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+        if (fallbackLine) { map.removeLayer(fallbackLine); fallbackLine = null; }
+        const routeLine = L.polyline(latlngs, {
+          color: '#0ea5e9',
+          weight: 5,
+          opacity: 0.95,
+          lineJoin: 'round',
+          lineCap: 'round',
+        }).addTo(map);
+        map.fitBounds(routeLine.getBounds(), { padding: [36, 36] });
+        setOsrmRoute({
+          distanceKm: route.distance / 1000,
+          etaMinutes: Math.max(1, Math.round(route.duration / 60)),
+        });
+      })
+      .catch(() => { /* keep straight-line fallback + haversine ETA */ });
+
     return () => {
+      cancelled = true;
       map.remove();
       mapRef.current = null;
     };

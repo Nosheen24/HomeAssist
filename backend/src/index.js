@@ -9,6 +9,9 @@ const reviewRoutes = require('./routes/reviews');
 const categoryRoutes = require('./routes/categories');
 const aiRoutes = require('./routes/ai');
 const adminRoutes = require('./routes/admin');
+const paymentRoutes = require('./routes/payments');
+const dispatchRoutes = require('./routes/dispatch');
+const geoRoutes = require('./routes/geo');
 
 const app = express();
 
@@ -25,6 +28,9 @@ app.use('/api/reviews', reviewRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/payments', paymentRoutes);
+app.use('/api/dispatch', dispatchRoutes);
+app.use('/api/geo', geoRoutes);
 
 app.use((err, _req, res, _next) => {
   console.error(err.stack);

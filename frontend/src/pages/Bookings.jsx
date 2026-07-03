@@ -6,6 +6,12 @@ import Button from '../components/ui/Button';
 import StarRating from '../components/ui/StarRating';
 import Skeleton from '../components/ui/Skeleton';
 import LiveTrackerMap from '../components/shared/LiveTrackerMap';
+import PaymentModal from '../components/shared/PaymentModal';
+
+const PAYMENT_PILL = {
+  held:     { label: '🔒 Paid · Held in escrow', cls: 'bg-ha-teal/10 text-ha-teal border-ha-teal/30' },
+  released: { label: '✅ Payment released to provider', cls: 'bg-ha-primary/10 text-ha-primary border-ha-primary/30' },
+};
 
 function ReviewModal({ booking, onClose, onSubmit }) {
   const [rating, setRating] = useState(5);
@@ -53,9 +59,11 @@ function ReviewModal({ booking, onClose, onSubmit }) {
   );
 }
 
-function BookingCard({ booking, onCancel, onReview }) {
+function BookingCard({ booking, onCancel, onReview, onPay }) {
   const { label, variant } = statusBadge(booking.status);
   const scheduledDate = new Date(booking.scheduledAt);
+  const paymentPill = PAYMENT_PILL[booking.paymentStatus];
+  const needsPayment = booking.paymentStatus === 'unpaid' && ['pending', 'accepted'].includes(booking.status);
   const canShowLiveTracker =
     booking.status === 'accepted' &&
     booking.providerLat != null && booking.providerLng != null &&
@@ -91,6 +99,28 @@ function BookingCard({ booking, onCancel, onReview }) {
           {booking.address}
         </div>
       </div>
+
+      {(paymentPill || needsPayment) && (
+        <div className="flex items-center justify-between gap-3 mb-3">
+          {paymentPill ? (
+            <span className={`text-xs font-medium rounded-full px-3 py-1 border ${paymentPill.cls}`}>
+              {paymentPill.label}
+            </span>
+          ) : (
+            <span className="text-xs text-ha-accent">Payment pending</span>
+          )}
+          {booking.service?.price != null && (
+            <span className="text-xs font-mono font-semibold text-ha-text-2">
+              PKR {Number(booking.service.price).toLocaleString()}
+            </span>
+          )}
+        </div>
+      )}
+      {needsPayment && (
+        <Button size="sm" className="w-full mb-3" onClick={() => onPay(booking)}>
+          Pay Now
+        </Button>
+      )}
 
       {booking.status === 'accepted' && (
         <div className="mt-4 space-y-3">
@@ -146,6 +176,7 @@ export default function Bookings() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('active');
   const [reviewTarget, setReviewTarget] = useState(null);
+  const [payTarget, setPayTarget] = useState(null);
 
   const load = () => {
     setLoading(true);
@@ -229,7 +260,7 @@ export default function Bookings() {
       ) : (
         <div className="space-y-4">
           {filtered.map((b) => (
-            <BookingCard key={b.id} booking={b} onCancel={handleCancel} onReview={setReviewTarget} />
+            <BookingCard key={b.id} booking={b} onCancel={handleCancel} onReview={setReviewTarget} onPay={setPayTarget} />
           ))}
         </div>
       )}
@@ -239,6 +270,16 @@ export default function Bookings() {
           booking={reviewTarget}
           onClose={() => setReviewTarget(null)}
           onSubmit={handleReview}
+        />
+      )}
+
+      {payTarget && (
+        <PaymentModal
+          bookingId={payTarget.id}
+          amount={payTarget.service?.price}
+          serviceTitle={payTarget.service?.title}
+          onClose={() => setPayTarget(null)}
+          onPaid={() => { setPayTarget(null); load(); }}
         />
       )}
     </div>

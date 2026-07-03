@@ -1,10 +1,19 @@
 import { useState, useEffect } from 'react';
 import { get, patch } from '../api/client';
+import { getPaymentStats } from '../api/payments';
 import { useToast } from '../components/ui/Toast';
 import Badge from '../components/ui/Badge';
 import Button from '../components/ui/Button';
 import StarRating from '../components/ui/StarRating';
 import Skeleton from '../components/ui/Skeleton';
+
+const money = (n) => `PKR ${Number(n || 0).toLocaleString()}`;
+
+const TXN_STATUS_CLS = {
+  held:     'bg-ha-accent/10 text-ha-accent border-ha-accent/30',
+  released: 'bg-ha-teal/10 text-ha-teal border-ha-teal/30',
+  refunded: 'bg-ha-danger/10 text-ha-danger border-ha-danger/30',
+};
 
 function StatCard({ label, value, sub, accentColor }) {
   return (
@@ -19,6 +28,7 @@ function StatCard({ label, value, sub, accentColor }) {
 export default function Admin() {
   const toast = useToast();
   const [stats, setStats] = useState(null);
+  const [payments, setPayments] = useState(null);
   const [unverified, setUnverified] = useState([]);
   const [loading, setLoading] = useState(true);
   const [verifying, setVerifying] = useState(null);
@@ -27,11 +37,13 @@ export default function Admin() {
   const load = async () => {
     setLoading(true);
     try {
-      const [statsData, unverifiedData] = await Promise.all([
+      const [statsData, paymentsData, unverifiedData] = await Promise.all([
         get('/admin/stats'),
+        getPaymentStats(),
         get('/admin/providers/unverified'),
       ]);
       setStats(statsData);
+      setPayments(paymentsData);
       setUnverified(unverifiedData);
     } catch (err) {
       toast(err.message || 'Failed to load admin data', 'error');
@@ -83,6 +95,65 @@ export default function Admin() {
           <StatCard label="Providers" value={stats.providers.total} sub={`${stats.providers.verified} verified`} accentColor="border-l-ha-primary" />
           <StatCard label="Total Bookings" value={stats.bookings.total} sub={`${stats.bookings.pending} pending`} accentColor="border-l-ha-accent" />
           <StatCard label="Reviews" value={stats.reviews.total} sub={`${stats.bookings.completed} completed`} accentColor="border-l-ha-primary" />
+        </div>
+      )}
+
+      {/* ─── Escrow & Commission ─────────────────────────────────────────── */}
+      {payments && (
+        <div className="mb-8">
+          <h2 className="text-lg font-semibold text-ha-text-1 font-display mb-3">Escrow & Commission</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-5">
+            <StatCard label="Total Revenue" value={money(payments.totalRevenue)} accentColor="border-l-ha-teal" />
+            <StatCard label="Platform Commission" value={money(payments.totalCommission)} sub="15% of revenue" accentColor="border-l-ha-primary" />
+            <StatCard label="Total Payouts" value={money(payments.totalPayouts)} sub="released to providers" accentColor="border-l-ha-accent" />
+            <StatCard label="Transactions" value={payments.transactionCount} accentColor="border-l-ha-primary" />
+          </div>
+
+          <div className="bg-ha-surface rounded-xl border border-ha-border overflow-hidden">
+            <div className="px-6 py-4 border-b border-ha-border">
+              <h3 className="font-semibold text-ha-text-1">All Transactions</h3>
+            </div>
+            {payments.transactions.length === 0 ? (
+              <div className="text-center py-10 text-sm text-ha-text-3">No transactions yet.</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs text-ha-text-3 border-b border-ha-border bg-ha-surface-2">
+                      <th className="px-4 py-2.5 font-medium">Customer</th>
+                      <th className="px-4 py-2.5 font-medium">Provider</th>
+                      <th className="px-4 py-2.5 font-medium text-right">Amount</th>
+                      <th className="px-4 py-2.5 font-medium text-right">Commission</th>
+                      <th className="px-4 py-2.5 font-medium text-right">Payout</th>
+                      <th className="px-4 py-2.5 font-medium">Method</th>
+                      <th className="px-4 py-2.5 font-medium">Status</th>
+                      <th className="px-4 py-2.5 font-medium">Date</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-ha-border">
+                    {payments.transactions.map((t) => (
+                      <tr key={t.id} className="text-ha-text-2">
+                        <td className="px-4 py-2.5 text-ha-text-1">{t.customerName || '—'}</td>
+                        <td className="px-4 py-2.5">{t.providerName || '—'}</td>
+                        <td className="px-4 py-2.5 text-right font-mono">{money(t.amount)}</td>
+                        <td className="px-4 py-2.5 text-right font-mono text-ha-primary">{money(t.commission)}</td>
+                        <td className="px-4 py-2.5 text-right font-mono text-ha-teal">{money(t.providerPayout)}</td>
+                        <td className="px-4 py-2.5 capitalize">{t.method}</td>
+                        <td className="px-4 py-2.5">
+                          <span className={`text-xs font-medium rounded-full px-2.5 py-1 border ${TXN_STATUS_CLS[t.status] || ''}`}>
+                            {t.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5 text-xs text-ha-text-3">
+                          {new Date(t.createdAt).toLocaleDateString('en-PK', { dateStyle: 'medium' })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
