@@ -1,4 +1,4 @@
-# HomeAssist
+# Homesis
 
 A full-stack SaaS home service marketplace connecting customers with verified professionals across Pakistan. Built with React + Vite (frontend) and Node.js + Express + Prisma + SQLite (backend).
 
