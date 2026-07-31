@@ -6,6 +6,8 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': 'http://localhost:5000',
+      // WebRTC call signaling — ws:true upgrades the proxied connection to a WebSocket.
+      '/ws': { target: 'ws://localhost:5000', ws: true },
       '/anthropic': {
         target: 'https://api.anthropic.com',
         changeOrigin: true,

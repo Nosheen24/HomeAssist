@@ -19,6 +19,7 @@ import Button from '../components/ui/Button';
 import StarRating from '../components/ui/StarRating';
 import Skeleton from '../components/ui/Skeleton';
 import LiveTrackerMap from '../components/shared/LiveTrackerMap';
+import ChatPanel from '../components/shared/ChatPanel';
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -678,6 +679,11 @@ function BookingsTab({ bookings, loading, onAction, actionLoading }) {
                       providerLabel={b.provider?.user?.name || 'Provider'}
                       updatedAt={b.providerLocationUpdatedAt}
                     />
+                  </div>
+                )}
+                {['accepted', 'completed'].includes(b.status) && (
+                  <div className="mb-3">
+                    <ChatPanel bookingId={b.id} />
                   </div>
                 )}
                 {b.status === 'pending' && (

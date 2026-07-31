@@ -7,6 +7,7 @@ import StarRating from '../components/ui/StarRating';
 import Skeleton from '../components/ui/Skeleton';
 import LiveTrackerMap from '../components/shared/LiveTrackerMap';
 import PaymentModal from '../components/shared/PaymentModal';
+import ChatPanel from '../components/shared/ChatPanel';
 
 const PAYMENT_PILL = {
   held:     { label: '🔒 Paid · Held in escrow', cls: 'bg-ha-teal/10 text-ha-teal border-ha-teal/30' },
@@ -141,6 +142,12 @@ function BookingCard({ booking, onCancel, onReview, onPay }) {
               </p>
             </div>
           )}
+        </div>
+      )}
+
+      {['accepted', 'completed'].includes(booking.status) && (
+        <div className="mt-4">
+          <ChatPanel bookingId={booking.id} />
         </div>
       )}
 

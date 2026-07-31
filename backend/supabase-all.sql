@@ -87,6 +87,32 @@ CREATE TABLE IF NOT EXISTS reviews (
   created_at  TIMESTAMPTZ    NOT NULL DEFAULT NOW()
 );
 
+-- ─── Booking chat (customer ↔ provider, scoped to one booking) ───────────────────
+CREATE TABLE IF NOT EXISTS messages (
+  id          SERIAL PRIMARY KEY,
+  booking_id  INTEGER     NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+  sender_id   INTEGER     NOT NULL REFERENCES users(id),
+  content     TEXT        NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_messages_booking ON messages(booking_id);
+
+-- Broadcast new messages over Supabase Realtime. Guarded so re-running is safe:
+-- the supabase_realtime publication already exists on Supabase projects, and a
+-- table can only be added to it once.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
+    CREATE PUBLICATION supabase_realtime;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND tablename = 'messages'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE messages;
+  END IF;
+END $$;
+
 -- ─── Payment / escrow system ────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS transactions (
   id              SERIAL PRIMARY KEY,
