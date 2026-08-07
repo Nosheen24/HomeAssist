@@ -23,7 +23,9 @@ app.use(cors({
   origin: process.env.CLIENT_URL || 'http://localhost:5173',
   credentials: true,
 }));
-app.use(express.json());
+// Larger limit so provider signups can include base64 CNIC images / avatars.
+app.use(express.json({ limit: '15mb' }));
+app.use(express.urlencoded({ limit: '15mb', extended: true }));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/providers', providerRoutes);
