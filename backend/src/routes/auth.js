@@ -107,4 +107,49 @@ router.get('/me', require('../middleware/auth').authenticate, async (req, res) =
   }
 });
 
+const updateProfileSchema = z.object({
+  name: z.string().min(2).max(100).optional(),
+  phone: z.string().optional().nullable(),
+  location: z.string().optional().nullable(),
+  bio: z.string().optional().nullable(),
+  profilePhoto: z.string().optional().nullable(),
+});
+
+// PATCH /api/auth/me — update the signed-in user's own profile (any role).
+router.patch('/me', require('../middleware/auth').authenticate, async (req, res) => {
+  try {
+    const data = updateProfileSchema.parse(req.body);
+
+    const fieldMap = {
+      name: 'name', phone: 'phone', location: 'location',
+      bio: 'bio', profilePhoto: 'profile_photo',
+    };
+    const updates = [];
+    const params = [];
+    for (const [jsKey, dbCol] of Object.entries(fieldMap)) {
+      if (data[jsKey] !== undefined) {
+        params.push(data[jsKey]);
+        updates.push(`${dbCol} = $${params.length}`);
+      }
+    }
+    if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
+
+    params.push(req.user.id);
+    await pool.query(`UPDATE users SET ${updates.join(', ')} WHERE id = $${params.length}`, params);
+
+    const { rows } = await pool.query(
+      `SELECT u.*,
+         (SELECT row_to_json(p) FROM providers p WHERE p.user_id = u.id) AS provider
+       FROM users u WHERE u.id = $1`,
+      [req.user.id]
+    );
+    const user = deepToCamel(rows[0]);
+    const { passwordHash, ...safe } = user;
+    res.json(safe);
+  } catch (err) {
+    if (err.name === 'ZodError') return res.status(400).json({ error: err.errors });
+    res.status(500).json({ error: 'Failed to update profile' });
+  }
+});
+
 module.exports = router;

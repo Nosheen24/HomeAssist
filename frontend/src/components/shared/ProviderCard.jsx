@@ -9,8 +9,17 @@ const AVATAR_PALETTES = [
   'bg-rose-100 text-rose-600',
 ];
 
-function Avatar({ name }) {
+function Avatar({ name, photo }) {
   const color = AVATAR_PALETTES[(name?.charCodeAt(0) || 0) % AVATAR_PALETTES.length];
+  if (photo) {
+    return (
+      <img
+        src={photo}
+        alt={name || 'Provider'}
+        className="h-12 w-12 rounded-full object-cover flex-shrink-0"
+      />
+    );
+  }
   return (
     <div className={`h-12 w-12 ${color} rounded-full flex items-center justify-center font-semibold text-base flex-shrink-0`}>
       {name?.[0]?.toUpperCase() || '?'}
@@ -19,7 +28,7 @@ function Avatar({ name }) {
 }
 
 export default function ProviderCard({ provider }) {
-  const { id, avgRating, reviewCount, isVerified, user, services } = provider;
+  const { id, avgRating, reviewCount, isVerified, user, services, profilePhoto } = provider;
   const [hovered, setHovered] = useState(false);
 
   return (
@@ -37,7 +46,7 @@ export default function ProviderCard({ provider }) {
     >
       <div className="relative p-5">
         <div className="flex items-start gap-3 mb-3">
-          <Avatar name={user?.name} />
+          <Avatar name={user?.name} photo={profilePhoto} />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 flex-wrap">
               <h3 className="text-sm font-semibold text-ha-text-1 group-hover:text-ha-primary transition-colors truncate">

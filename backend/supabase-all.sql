@@ -14,8 +14,14 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash   VARCHAR(255) NOT NULL,
   phone           VARCHAR(50),
   location        VARCHAR(100),
+  bio             TEXT,
+  profile_photo   TEXT,
   created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
+
+-- Profile fields for existing installs (safe to re-run).
+ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_photo TEXT;
 
 CREATE TABLE IF NOT EXISTS providers (
   id                SERIAL PRIMARY KEY,

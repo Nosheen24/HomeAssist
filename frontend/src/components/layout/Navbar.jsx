@@ -68,9 +68,14 @@ export default function Navbar() {
               <div className="relative">
                 <button onClick={() => setDropdownOpen(!dropdownOpen)}
                   className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-ha-surface-2 transition-colors cursor-pointer">
-                  <div className="h-8 w-8 rounded-full bg-ha-primary/15 flex items-center justify-center text-ha-primary text-sm font-semibold">
-                    {user.name?.[0]?.toUpperCase() || 'U'}
-                  </div>
+                  {user.profilePhoto ? (
+                    <img src={user.profilePhoto} alt={user.name}
+                      className="h-8 w-8 rounded-full object-cover" />
+                  ) : (
+                    <div className="h-8 w-8 rounded-full bg-ha-primary/15 flex items-center justify-center text-ha-primary text-sm font-semibold">
+                      {user.name?.[0]?.toUpperCase() || 'U'}
+                    </div>
+                  )}
                   <span className="text-sm font-medium text-ha-text-2">{user.name?.split(' ')[0]}</span>
                   <svg className="h-4 w-4 text-ha-text-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -90,6 +95,10 @@ export default function Navbar() {
                           {roleLink.label}
                         </Link>
                       )}
+                      <Link to="/profile" onClick={() => setDropdownOpen(false)}
+                        className="block px-4 py-2.5 text-sm text-ha-text-2 hover:text-ha-text-1 hover:bg-ha-surface-2 transition-colors">
+                        My Profile
+                      </Link>
                       <button onClick={handleLogout}
                         className="w-full text-left px-4 py-2.5 text-sm text-ha-danger hover:bg-red-50 transition-colors cursor-pointer">
                         Sign out
@@ -137,10 +146,16 @@ export default function Navbar() {
             </Link>
           )}
           {user ? (
-            <button onClick={() => { handleLogout(); setMobileOpen(false); }}
-              className="w-full text-left px-3 py-2.5 rounded-xl text-sm text-ha-danger hover:bg-red-50 transition-colors cursor-pointer">
-              Sign out
-            </button>
+            <>
+              <Link to="/profile" onClick={() => setMobileOpen(false)}
+                className="block px-3 py-2.5 rounded-xl text-sm text-ha-text-2 hover:bg-ha-surface-2 hover:text-ha-text-1 transition-colors">
+                My Profile
+              </Link>
+              <button onClick={() => { handleLogout(); setMobileOpen(false); }}
+                className="w-full text-left px-3 py-2.5 rounded-xl text-sm text-ha-danger hover:bg-red-50 transition-colors cursor-pointer">
+                Sign out
+              </button>
+            </>
           ) : (
             <div className="flex gap-2 pt-2">
               <Link to="/login" onClick={() => setMobileOpen(false)}

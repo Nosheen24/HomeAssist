@@ -10,6 +10,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Bookings from './pages/Bookings';
 import ProviderDashboard from './pages/ProviderDashboard';
+import Profile from './pages/Profile';
 import Admin from './pages/Admin';
 import FAQChatbot from './components/shared/FAQChatbot';
 
@@ -48,6 +49,14 @@ function AppRoutes() {
             element={
               <ProtectedRoute roles={['customer']}>
                 <Bookings />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <Profile />
               </ProtectedRoute>
             }
           />

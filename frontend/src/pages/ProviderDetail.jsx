@@ -16,7 +16,7 @@ const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const inputCls = 'w-full rounded-[6px] border border-ha-border bg-ha-bg px-3 py-2.5 text-sm text-ha-text-1 placeholder-ha-text-3 focus:outline-none focus:ring-2 focus:ring-ha-primary/20 focus:border-ha-primary transition-colors';
 const labelCls = 'block text-[13px] font-medium text-ha-text-2';
 
-function Avatar({ name, size = 'xl' }) {
+function Avatar({ name, photo, size = 'xl' }) {
   const sizes = { lg: 'h-16 w-16 text-2xl', xl: 'h-20 w-20 text-3xl' };
   const colors = [
     'bg-ha-primary/20 text-ha-primary',
@@ -25,6 +25,15 @@ function Avatar({ name, size = 'xl' }) {
     'bg-ha-danger/20 text-ha-danger',
   ];
   const color = colors[(name?.charCodeAt(0) || 0) % colors.length];
+  if (photo) {
+    return (
+      <img
+        src={photo}
+        alt={name || 'Provider'}
+        className={`${sizes[size]} rounded-full object-cover flex-shrink-0`}
+      />
+    );
+  }
   return (
     <div className={`${sizes[size]} ${color} rounded-full flex items-center justify-center font-bold flex-shrink-0`}>
       {name?.[0]?.toUpperCase() || '?'}
@@ -134,7 +143,7 @@ export default function ProviderDetail() {
 
   if (!provider) return null;
 
-  const { user: pUser, services, availability, reviews, avgRating, reviewCount, isVerified, bio, experienceYears } = provider;
+  const { user: pUser, services, availability, reviews, avgRating, reviewCount, isVerified, bio, experienceYears, profilePhoto } = provider;
   const minPrice = services?.length > 0 ? Math.min(...services.map((s) => s.price)) : null;
 
   return (
@@ -145,7 +154,7 @@ export default function ProviderDetail() {
           {/* Profile header */}
           <div className="bg-ha-surface rounded-xl border border-ha-border p-6">
             <div className="flex items-start gap-4">
-              <Avatar name={pUser?.name} />
+              <Avatar name={pUser?.name} photo={profilePhoto} />
               <div className="flex-1 min-w-0">
                 <div className="flex items-start justify-between gap-2 flex-wrap">
                   <div>
